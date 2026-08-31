@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - tsx@4.23.13
+  - '@ai-sdk/gateway@3.0.185 || 4.0.69'
+  - '@ai-sdk/provider-utils@4.0.50 || 5.0.34'
+  - '@ai-sdk/provider@4.0.9'
+  - ai@6.0.272 || 7.0.85

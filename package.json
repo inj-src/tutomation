@@ -4,10 +4,16 @@
   "type": "module",
   "scripts": {
     "login": "tsx login.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ai:probe": "tsx ai-probe.ts",
+    "evaluate": "tsx evaluate.ts"
   },
   "dependencies": {
-    "playwright": "1.62.1"
+    "ai": "6.0.272",
+    "openai-oauth-provider": "1.0.3",
+    "playwright": "1.62.1",
+    "sharp": "0.35.4",
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@types/node": "26.4.0",

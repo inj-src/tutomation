@@ -1,20 +1,26 @@
 # Tutomation
 
-## Save a logged-in Playwright session
+## Log in and save a Playwright session
 
 ```bash
-npm install
-npx playwright install chromium
-npm run login
+pnpm install
+pnpm exec playwright install chromium
+pnpm run login
 ```
 
-The browser opens at the teacher website. Log in manually, return to the terminal,
-and press Enter. Playwright saves cookies and local storage to `.auth/state.json`.
+The command opens the teacher website. If the login page is shown, it asks for the
+TPIN and password in the terminal, submits the form, and saves both the authenticated
+browser state and the credentials for future local runs. Password input is masked on
+interactive terminals.
+
+Credentials are stored in `.auth/credentials.json`, which is Git-ignored and restricted
+to the current user. This is a local convenience file containing a password-equivalent;
+delete it if you no longer want automatic login.
 
 To use a different login URL:
 
 ```bash
-LOGIN_URL="https://teacher.udvash-unmesh.com/Teacher/Login" npm run login
+LOGIN_URL="https://teacher.udvash-unmesh.com/Teacher/Account/Login" pnpm run login
 ```
 
 The `.auth` directory is ignored by Git because it contains your authenticated
@@ -23,5 +29,20 @@ session.
 Run the TypeScript check with:
 
 ```bash
-npm run typecheck
+pnpm run typecheck
 ```
+
+## Test Codex OAuth and GPT-5.6 Luna
+
+Run the local two-request probe with an image:
+
+```bash
+pnpm run ai:probe -- ./path/to/image.png
+```
+
+The probe uses `gpt-5.6-luna` by default. Set `MODEL_ID` to test another model.
+It verifies image input, AI SDK structured output, `store: false`, and a
+script-only follow-up using the OAuth provider's local response state.
+
+The probe also sends a stable `promptCacheKey` and prints token usage. Cache hits
+are provider-dependent and are not required for the local continuation flow.

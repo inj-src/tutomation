@@ -14,19 +14,34 @@ async function choose<T extends Choice>(
   terminal: ReturnType<typeof createInterface>,
   title: string,
   values: T[],
+  reload: () => Promise<T[]>,
 ): Promise<T> {
-  console.log(`\n${title}`);
-  values.forEach((value, index) => {
-    console.log(`${index + 1}. ${value.label}`);
-  });
+  let options = values;
 
   while (true) {
+    console.log(`\n${title}`);
+    options.forEach((value, index) => {
+      console.log(`${index + 1}. ${value.label}`);
+    });
+    console.log("0. Reload options");
+
     const answer = await terminal.question("Select a number: ");
-    const selected = Number.parseInt(answer.trim(), 10);
-    if (selected >= 1 && selected <= values.length) {
-      return values[selected - 1];
+    if (answer.trim().toLowerCase() === "r" || answer.trim() === "0") {
+      try {
+        options = await reload();
+        console.log(`Reloaded ${options.length} option(s).`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`Could not reload options: ${message}`);
+      }
+      continue;
     }
-    console.log("Please enter one of the listed numbers.");
+
+    const selected = Number.parseInt(answer.trim(), 10);
+    if (selected >= 1 && selected <= options.length) {
+      return options[selected - 1];
+    }
+    console.log("Please enter one of the listed numbers or 0 to reload.");
   }
 }
 
@@ -42,7 +57,13 @@ function candidateLabel(candidate: ScriptCandidate): string {
 }
 
 function timestamp(): string {
-  return new Date().toISOString().replace(/[:.]/g, "-");
+  const date = new Date();
+  const pad = (value: number): string => String(value).padStart(2, "0");
+
+  return [
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    `${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`,
+  ].join("_");
 }
 
 async function main(): Promise<void> {
@@ -51,24 +72,28 @@ async function main(): Promise<void> {
 
   try {
     await site.open();
-    const categories = await site.listCategories();
+    const loadCategories = async () =>
+      (await site.listCategories()).map((value) => ({
+        ...value,
+        label: `${value.examName} | Pending: ${value.pending}`,
+      }));
     const category = await choose(
       terminal,
       "Available script categories",
-      categories.map((value) => ({
-        ...value,
-        label: `${value.examName} | Pending: ${value.pending}`,
-      })),
+      await loadCategories(),
+      loadCategories,
     );
 
-    const candidates = await site.listCandidates(category);
+    const loadCandidates = async () =>
+      (await site.listCandidates(category)).map((value) => ({
+        ...value,
+        label: candidateLabel(value),
+      }));
     const candidate = await choose(
       terminal,
       `Available scripts in ${category.examName}`,
-      candidates.map((value) => ({
-        ...value,
-        label: candidateLabel(value),
-      })),
+      await loadCandidates(),
+      loadCandidates,
     );
 
     const outputDirectory = `runs/${timestamp()}-exam-${candidate.examId}-script-${candidate.pendingQuestion}`;

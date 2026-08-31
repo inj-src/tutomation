@@ -46,3 +46,10 @@ script-only follow-up using the OAuth provider's local response state.
 
 The probe also sends a stable `promptCacheKey` and prints token usage. Cache hits
 are provider-dependent and are not required for the local continuation flow.
+
+## Annotation coordinates
+
+The evaluator returns integer pixel coordinates relative to the student-script
+image, with `(0, 0)` at the top-left. Circles use `center: [x, y]` and `radius`,
+underlines use `start` and `end`, ticks use `points`, and boxes use pixel `x`,
+`y`, `width`, and `height` values.

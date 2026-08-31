@@ -62,6 +62,8 @@ export type EvaluationCapture = {
 
 const baseUrl = "https://teacher.udvash-unmesh.com";
 const indexUrl = `${baseUrl}/Teacher/ScriptEvaluation/Index`;
+const evaluationPagePattern =
+  /\/(?:ExamOnlineWrittenQuestionDisplay|ExamSaqQuestionDisplay)(?:\?|$)/i;
 
 function text(value: string | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
@@ -74,6 +76,10 @@ function number(value: string | undefined): number {
 
 function absoluteUrl(value: string): string {
   return new URL(value, baseUrl).toString();
+}
+
+function urlsEqual(left: string, right: string): boolean {
+  return new URL(left).toString() === new URL(right).toString();
 }
 
 function queryUrl(candidate: ScriptCandidate): string {
@@ -93,6 +99,18 @@ function queryUrl(candidate: ScriptCandidate): string {
   }).toString();
 
   return url.toString();
+}
+
+function candidateButtonSelector(candidate: ScriptCandidate): string {
+  return [
+    `.btnStartEvaluation[data-examid="${candidate.examId}"]`,
+    `[data-courseid="${candidate.courseId}"]`,
+    `[data-subjectid="${candidate.subjectId}"]`,
+    `[data-uniqueset="${candidate.uniqueSet}"]`,
+    `[data-uniquesetquestionserial="${candidate.uniqueSetQuestionSerial}"]`,
+    `[data-questionversion="${candidate.questionVersion}"]`,
+    `[data-pendingquestion="${candidate.pendingQuestion}"]`,
+  ].join("");
 }
 
 async function waitForFonts(page: Page): Promise<void> {
@@ -252,9 +270,10 @@ export class TeacherSite {
     const marker = page.getByText(/Question\s*:/i).first();
     await marker.waitFor({ state: "visible", timeout: 30_000 });
 
-    const block = marker.locator(
-      "xpath=ancestor::*[contains(normalize-space(.), 'Full Marks')][1]",
-    );
+    // The question header and rendered `.questionResize` content share the
+    // same table header. The closest ancestor containing "Full Marks" is
+    // only the small header row, so capture the enclosing <th> instead.
+    const block = marker.locator("xpath=ancestor::th[1]");
 
     if ((await block.count()) > 0 && (await block.first().isVisible())) {
       return block.first();
@@ -280,21 +299,22 @@ export class TeacherSite {
   }
 
   private async startCandidate(candidate: ScriptCandidate): Promise<Page> {
-    const page = await this.navigate(candidate.detailsUrl);
-    const rows = page
-      .locator("table tbody tr")
-      .filter({ has: page.locator(".btnStartEvaluation") });
-    const row = rows.nth(candidate.rowIndex);
-    const button = row.locator(".btnStartEvaluation");
+    const currentPage = this.currentPage();
+    const page = urlsEqual(currentPage.url(), candidate.detailsUrl)
+      ? currentPage
+      : await this.navigate(candidate.detailsUrl);
+    const button = page.locator(candidateButtonSelector(candidate));
 
     if ((await button.count()) === 0) {
-      throw new Error("The selected script is no longer available.");
+      throw new Error(
+        "The selected script is no longer available. Reload the script list and choose another entry.",
+      );
     }
 
     await button.click();
 
     try {
-      await page.waitForURL(/ExamOnlineWrittenQuestionDisplay/i, {
+      await page.waitForURL(evaluationPagePattern, {
         timeout: 30_000,
       });
     } catch {
@@ -358,10 +378,14 @@ export class TeacherSite {
     await waitForFonts(samplePage);
 
     const sampleContent = samplePage.locator(
-      ".modal:visible, .modal-content:visible, .bootbox-body:visible, [role=dialog]:visible",
+      "#toggleCE:visible, .modal-content:visible, .bootbox-body:visible, .modal:visible, [role=dialog]:visible",
     );
+    await sampleContent
+      .first()
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .catch(() => undefined);
     if ((await sampleContent.count()) === 0) {
-      await page.screenshot({
+      await samplePage.screenshot({
         path: `${outputDirectory}/capture-debug.png`,
         fullPage: true,
       });
@@ -371,7 +395,7 @@ export class TeacherSite {
     }
 
     const sampleAnswerPath = `${outputDirectory}/sample-answer.png`;
-    await sampleContent.last().screenshot({
+    await sampleContent.first().screenshot({
       path: sampleAnswerPath,
       animations: "disabled",
     });

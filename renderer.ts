@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 import sharp from "sharp";
 
-import type { GeneratedEvaluation } from "./types.js";
+import type { GeneratedEvaluation, PixelPoint } from "./types.js";
 
 function escapeXml(value: string): string {
   return value
@@ -13,12 +13,24 @@ function escapeXml(value: string): string {
     .replaceAll("'", "&apos;");
 }
 
-function clamp(value: number): number {
-  return Math.min(1, Math.max(0, value));
+function clamp(value: number, size: number): number {
+  return Math.min(size, Math.max(0, value));
 }
 
-function px(value: number | null, size: number): number {
-  return clamp(value ?? 0) * size;
+function coordinate(value: number | null, size: number): number {
+  return clamp(value ?? 0, size);
+}
+
+function point(
+  value: PixelPoint | null,
+  width: number,
+  height: number,
+): PixelPoint | null {
+  if (!value) {
+    return null;
+  }
+
+  return [coordinate(value[0], width), coordinate(value[1], height)];
 }
 
 function renderSvg(
@@ -29,30 +41,57 @@ function renderSvg(
 ): string {
   const annotationSvg = evaluation.annotations
     .map((annotation) => {
-      const x = px(annotation.x, width);
-      const y = px(annotation.y, height);
-      const annotationWidth = px(annotation.width, width);
-      const annotationHeight = px(annotation.height, height);
       const color = "#e11d48";
 
       switch (annotation.kind) {
-        case "underline":
-          return `<line x1="${x}" y1="${y + annotationHeight}" x2="${x + annotationWidth}" y2="${y + annotationHeight}" stroke="${color}" stroke-width="3" stroke-linecap="round" />`;
-        case "circle":
-          return `<ellipse cx="${x + annotationWidth / 2}" cy="${y + annotationHeight / 2}" rx="${Math.max(annotationWidth / 2, 8)}" ry="${Math.max(annotationHeight / 2, 8)}" fill="none" stroke="${color}" stroke-width="3" />`;
-        case "box":
-          return `<rect x="${x}" y="${y}" width="${annotationWidth}" height="${annotationHeight}" fill="none" stroke="${color}" stroke-width="3" />`;
+        case "underline": {
+          const start = point(annotation.start, width, height);
+          const end = point(annotation.end, width, height);
+          return start && end
+            ? `<line x1="${start[0]}" y1="${start[1]}" x2="${end[0]}" y2="${end[1]}" stroke="${color}" stroke-width="3" stroke-linecap="round" />`
+            : "";
+        }
+        case "circle": {
+          const center = point(annotation.center, width, height);
+          if (!center || annotation.radius === null) {
+            return "";
+          }
+
+          const radius = Math.max(
+            4,
+            Math.min(annotation.radius, Math.max(width, height)),
+          );
+          return `<circle cx="${center[0]}" cy="${center[1]}" r="${radius}" fill="none" stroke="${color}" stroke-width="3" />`;
+        }
+        case "box": {
+          if (
+            annotation.x === null ||
+            annotation.y === null ||
+            annotation.width === null ||
+            annotation.height === null
+          ) {
+            return "";
+          }
+
+          const x = coordinate(annotation.x, width);
+          const y = coordinate(annotation.y, height);
+          const boxWidth = Math.min(annotation.width, width - x);
+          const boxHeight = Math.min(annotation.height, height - y);
+          return `<rect x="${x}" y="${y}" width="${Math.max(0, boxWidth)}" height="${Math.max(0, boxHeight)}" fill="none" stroke="${color}" stroke-width="3" />`;
+        }
         case "tick": {
-          const points = annotation.points?.length
-            ? annotation.points
-                .map((point) => `${px(point.x, width)},${px(point.y, height)}`)
-                .join(" ")
-            : `${x},${y + annotationHeight / 2} ${x + annotationWidth / 3},${y + annotationHeight} ${x + annotationWidth},${y}`;
-          return `<polyline points="${points}" fill="none" stroke="#15803d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />`;
+          const points = annotation.points
+            ?.map((value) => point(value, width, height))
+            .filter((value): value is PixelPoint => value !== null)
+            .map((value) => `${value[0]},${value[1]}`)
+            .join(" ");
+          return points
+            ? `<polyline points="${points}" fill="none" stroke="#15803d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />`
+            : "";
         }
         case "text":
-          return annotation.text
-            ? `<text x="${x}" y="${Math.max(20, y)}" fill="${color}" font-family="Noto Sans Bengali, Noto Sans, sans-serif" font-size="20" font-weight="600">${escapeXml(annotation.text)}</text>`
+          return annotation.text && annotation.x !== null && annotation.y !== null
+            ? `<text x="${coordinate(annotation.x, width)}" y="${Math.max(20, coordinate(annotation.y, height))}" fill="${color}" font-family="Noto Sans Bengali, Noto Sans, sans-serif" font-size="20" font-weight="600">${escapeXml(annotation.text)}</text>`
             : "";
       }
     })

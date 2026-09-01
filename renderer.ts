@@ -21,11 +21,15 @@ function coordinate(value: number | null, size: number): number {
   return clamp(value ?? 0, size);
 }
 
-function point(
-  value: PixelPoint | null,
-  width: number,
-  height: number,
-): PixelPoint | null {
+function formatScore(value: number): string {
+  const normalized = Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+
+  return normalized.length < 2 ? normalized.padStart(2, "0") : normalized;
+}
+
+function point(value: PixelPoint | null, width: number, height: number): PixelPoint | null {
   if (!value) {
     return null;
   }
@@ -33,12 +37,20 @@ function point(
   return [coordinate(value[0], width), coordinate(value[1], height)];
 }
 
-function renderSvg(
-  width: number,
-  height: number,
-  evaluation: GeneratedEvaluation,
-  maxScore: number,
-): string {
+function renderSvg(width: number, height: number, evaluation: GeneratedEvaluation): string {
+  const scoreSvg = evaluation.questionScores
+    .map((questionScore) => {
+      const anchorX = coordinate(questionScore.x, width);
+      const anchorY = coordinate(questionScore.y, height);
+      const hasLeftMargin = anchorX >= 32;
+      const labelX = hasLeftMargin ? anchorX - 8 : Math.min(width - 4, anchorX + 8);
+      const labelY = Math.max(14, Math.min(height - 2, anchorY + 7));
+      const textAnchor = hasLeftMargin ? "end" : "start";
+
+      return `<text x="${labelX}" y="${labelY}" text-anchor="${textAnchor}" fill="#15803d" font-family="Noto Sans, sans-serif" font-size="18" font-weight="700">${escapeXml(formatScore(questionScore.score))}</text>`;
+    })
+    .join("");
+
   const annotationSvg = evaluation.annotations
     .map((annotation) => {
       const color = "#e11d48";
@@ -57,10 +69,7 @@ function renderSvg(
             return "";
           }
 
-          const radius = Math.max(
-            4,
-            Math.min(annotation.radius, Math.max(width, height)),
-          );
+          const radius = Math.max(4, Math.min(annotation.radius, Math.max(width, height)));
           return `<circle cx="${center[0]}" cy="${center[1]}" r="${radius}" fill="none" stroke="${color}" stroke-width="3" />`;
         }
         case "box": {
@@ -97,13 +106,9 @@ function renderSvg(
     })
     .join("");
 
-  const scoreText = `${evaluation.score.toFixed(2)} / ${maxScore.toFixed(2)}`;
-  const scoreX = Math.max(0, width - 240);
-
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    ${scoreSvg}
     ${annotationSvg}
-    <rect x="${scoreX}" y="12" width="228" height="44" rx="8" fill="white" fill-opacity="0.88" stroke="#e11d48" stroke-width="2" />
-    <text x="${scoreX + 114}" y="41" text-anchor="middle" fill="#9f1239" font-family="Noto Sans, sans-serif" font-size="20" font-weight="700">Score: ${escapeXml(scoreText)}</text>
   </svg>`;
 }
 
@@ -111,7 +116,6 @@ export async function renderEvaluation(input: {
   sourcePath: string;
   outputPath: string;
   evaluation: GeneratedEvaluation;
-  maxScore: number;
 }): Promise<void> {
   const source = sharp(input.sourcePath);
   const metadata = await source.metadata();
@@ -119,9 +123,7 @@ export async function renderEvaluation(input: {
     throw new Error("Could not read source image dimensions.");
   }
 
-  const overlay = Buffer.from(
-    renderSvg(metadata.width, metadata.height, input.evaluation, input.maxScore),
-  );
+  const overlay = Buffer.from(renderSvg(metadata.width, metadata.height, input.evaluation));
 
   await source
     .composite([{ input: overlay, top: 0, left: 0 }])
@@ -130,6 +132,6 @@ export async function renderEvaluation(input: {
 
   await writeFile(
     `${input.outputPath}.svg`,
-    renderSvg(metadata.width, metadata.height, input.evaluation, input.maxScore),
+    renderSvg(metadata.width, metadata.height, input.evaluation),
   );
 }

@@ -1,20 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 
-import {
-  chromium,
-  type Browser,
-  type BrowserContext,
-  type Locator,
-  type Page,
-} from "playwright";
+import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
 
-import {
-  authFile,
-  ensureTeacherAuthenticated,
-  hasSavedAuthState,
-  isLoginPage,
-} from "./auth.js";
+import { authFile, ensureTeacherAuthenticated, hasSavedAuthState, isLoginPage } from "./auth.js";
 
 export type ScriptCategory = {
   index: number;
@@ -83,10 +72,7 @@ function urlsEqual(left: string, right: string): boolean {
 }
 
 function queryUrl(candidate: ScriptCandidate): string {
-  const url = new URL(
-    "/Teacher/OnlineWrittenEvaluation/ExamOnlineWrittenQuestionDisplay",
-    baseUrl,
-  );
+  const url = new URL("/Teacher/OnlineWrittenEvaluation/ExamOnlineWrittenQuestionDisplay", baseUrl);
 
   url.search = new URLSearchParams({
     examId: candidate.examId,
@@ -191,9 +177,7 @@ export class TeacherSite {
     for (let rowIndex = 0; rowIndex < count; rowIndex += 1) {
       const row = rows.nth(rowIndex);
       const cells = await row.locator("td").allTextContents();
-      const href = await row
-        .locator('a[href*="NewScriptEvaluationDetails"]')
-        .getAttribute("href");
+      const href = await row.locator('a[href*="NewScriptEvaluationDetails"]').getAttribute("href");
 
       if (!href) {
         continue;
@@ -237,8 +221,7 @@ export class TeacherSite {
         courseId: element.getAttribute("data-courseid") ?? "",
         subjectId: element.getAttribute("data-subjectid") ?? "",
         uniqueSet: element.getAttribute("data-uniqueset") ?? "",
-        uniqueSetQuestionSerial:
-          element.getAttribute("data-uniquesetquestionserial") ?? "",
+        uniqueSetQuestionSerial: element.getAttribute("data-uniquesetquestionserial") ?? "",
         questionVersion: element.getAttribute("data-questionversion") ?? "",
         pendingQuestion: element.getAttribute("data-pendingquestion") ?? "",
       }));
@@ -318,11 +301,8 @@ export class TeacherSite {
         timeout: 30_000,
       });
     } catch {
-      const dialog = page.locator(
-        ".bootbox:visible, .modal:visible, [role=dialog]:visible",
-      );
-      const dialogText =
-        (await dialog.count()) > 0 ? text(await dialog.last().innerText()) : "";
+      const dialog = page.locator(".bootbox:visible, .modal:visible, [role=dialog]:visible");
+      const dialogText = (await dialog.count()) > 0 ? text(await dialog.last().innerText()) : "";
 
       if (dialogText) {
         throw new Error(
@@ -339,10 +319,7 @@ export class TeacherSite {
     return page;
   }
 
-  async capture(
-    candidate: ScriptCandidate,
-    outputDirectory: string,
-  ): Promise<EvaluationCapture> {
+  async capture(candidate: ScriptCandidate, outputDirectory: string): Promise<EvaluationCapture> {
     const page = await this.startCandidate(candidate);
     const context = this.currentContext();
     await mkdir(outputDirectory, { recursive: true });
@@ -350,9 +327,7 @@ export class TeacherSite {
 
     const evaluationUrl = page.url();
     const bodyText = await page.locator("body").innerText();
-    const fullMarksMatch = bodyText.match(
-      /Full\s*Marks\s*:\s*([0-9]+(?:\.[0-9]+)?)/i,
-    );
+    const fullMarksMatch = bodyText.match(/Full\s*Marks\s*:\s*([0-9]+(?:\.[0-9]+)?)/i);
     const maxScore = fullMarksMatch ? Number(fullMarksMatch[1]) : 0;
 
     if (!maxScore) {
@@ -372,8 +347,7 @@ export class TeacherSite {
     await page.waitForTimeout(750);
 
     const samplePage =
-      context.pages().find((candidatePage) => !pagesBefore.has(candidatePage)) ??
-      page;
+      context.pages().find((candidatePage) => !pagesBefore.has(candidatePage)) ?? page;
     await samplePage.waitForLoadState("networkidle").catch(() => undefined);
     await waitForFonts(samplePage);
 
@@ -389,9 +363,7 @@ export class TeacherSite {
         path: `${outputDirectory}/capture-debug.png`,
         fullPage: true,
       });
-      throw new Error(
-        "Sample Answer was opened, but no visible answer container was found.",
-      );
+      throw new Error("Sample Answer was opened, but no visible answer container was found.");
     }
 
     const sampleAnswerPath = `${outputDirectory}/sample-answer.png`;

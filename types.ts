@@ -18,6 +18,15 @@ export type Annotation = {
   confidence: number | null;
 };
 
+export type QuestionScore = {
+  part: string;
+  score: number;
+  maxScore: number;
+  x: number;
+  y: number;
+  confidence: number | null;
+};
+
 export type TokenUsage = {
   inputTokens: number;
   cachedInputTokens: number;
@@ -30,6 +39,7 @@ export type GeneratedEvaluation = {
   score: number;
   summary: string;
   annotations: Annotation[];
+  questionScores: QuestionScore[];
   usage: TokenUsage;
   responseId: string | null;
 };

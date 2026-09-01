@@ -3,11 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 
 import { chromium } from "playwright";
 
-import {
-  authFile,
-  ensureTeacherAuthenticated,
-  saveAuthState,
-} from "./auth.js";
+import { authFile, ensureTeacherAuthenticated, saveAuthState } from "./auth.js";
 
 const loginUrl = process.env.LOGIN_URL ?? "https://teacher.udvash-unmesh.com/";
 

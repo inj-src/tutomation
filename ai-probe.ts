@@ -6,14 +6,11 @@ import { z } from "zod";
 
 const modelId = process.env.MODEL_ID ?? "gpt-5.6-luna";
 const imagePath =
-  process.argv.slice(2).find((argument) => argument !== "--") ??
-  process.env.PROBE_IMAGE;
+  process.argv.slice(2).find((argument) => argument !== "--") ?? process.env.PROBE_IMAGE;
 const promptCacheKey = "tutomation-category-context-probe-v1";
 
 if (!imagePath) {
-  throw new Error(
-    "Provide an image path: pnpm run ai:probe -- ./path/to/image.png",
-  );
+  throw new Error("Provide an image path: pnpm run ai:probe -- ./path/to/image.png");
 }
 
 const image = await readFile(imagePath);
@@ -43,8 +40,7 @@ const first = await generateText({
       content: [
         {
           type: "text",
-          text:
-            "Inspect this image enough to confirm that image input works. Remember the exact marker: TUTOMATION_CONTEXT_01. Return whether you saw an image and the marker.",
+          text: "Inspect this image enough to confirm that image input works. Remember the exact marker: TUTOMATION_CONTEXT_01. Return whether you saw an image and the marker.",
         },
         {
           type: "file",
@@ -97,7 +93,4 @@ const second = await generateText({
 console.log("Second structured output:", JSON.stringify(second.output));
 console.log("Second response ID:", second.response.id ?? "(missing)");
 console.log("Second usage:", JSON.stringify(second.usage));
-console.log(
-  "Second provider metadata:",
-  JSON.stringify(second.providerMetadata ?? null),
-);
+console.log("Second provider metadata:", JSON.stringify(second.providerMetadata ?? null));

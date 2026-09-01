@@ -1,10 +1,4 @@
-import {
-  access,
-  chmod,
-  mkdir,
-  readFile,
-  writeFile,
-} from "node:fs/promises";
+import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname } from "node:path";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
@@ -14,8 +8,7 @@ import type { BrowserContext, Page } from "playwright";
 
 export const authDirectory = ".auth";
 export const authFile = `${authDirectory}/state.json`;
-export const credentialsFile =
-  process.env.CREDENTIALS_FILE ?? `${authDirectory}/credentials.json`;
+export const credentialsFile = process.env.CREDENTIALS_FILE ?? `${authDirectory}/credentials.json`;
 
 type Credentials = {
   pin: string;
@@ -68,11 +61,7 @@ async function saveCredentials(credentials: Credentials): Promise<void> {
   if (credentialsDirectory !== ".") {
     await chmod(credentialsDirectory, 0o700);
   }
-  await writeFile(
-    credentialsFile,
-    `${JSON.stringify(credentials, null, 2)}\n`,
-    { mode: 0o600 },
-  );
+  await writeFile(credentialsFile, `${JSON.stringify(credentials, null, 2)}\n`, { mode: 0o600 });
   await chmod(credentialsFile, 0o600);
 }
 
@@ -83,10 +72,7 @@ export async function saveAuthState(context: BrowserContext): Promise<void> {
   await chmod(authFile, 0o600);
 }
 
-async function promptSecret(
-  terminal: ReadlineInterface,
-  prompt: string,
-): Promise<string> {
+async function promptSecret(terminal: ReadlineInterface, prompt: string): Promise<string> {
   if (!input.isTTY || typeof input.setRawMode !== "function") {
     return terminal.question(prompt);
   }
@@ -142,9 +128,7 @@ async function promptSecret(
   });
 }
 
-async function promptCredentials(
-  terminal: ReadlineInterface,
-): Promise<Credentials> {
+async function promptCredentials(terminal: ReadlineInterface): Promise<Credentials> {
   const pin = (await terminal.question("Teacher TPIN: ")).trim();
   const password = await promptSecret(terminal, "Teacher password: ");
 
@@ -161,7 +145,12 @@ function loginErrorText(page: Page): Promise<string> {
       ".field-validation-error:visible, .validation-summary-errors:visible, .alert-danger:visible",
     )
     .allTextContents()
-    .then((messages) => messages.map((message) => message.trim()).filter(Boolean).join(" "));
+    .then((messages) =>
+      messages
+        .map((message) => message.trim())
+        .filter(Boolean)
+        .join(" "),
+    );
 }
 
 export async function isLoginPage(page: Page): Promise<boolean> {

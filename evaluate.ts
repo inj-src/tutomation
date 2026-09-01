@@ -137,7 +137,6 @@ async function main(): Promise<void> {
       sourcePath: capture.studentScriptPath,
       outputPath: annotatedPath,
       evaluation,
-      maxScore: capture.maxScore,
     });
 
     console.log("\nEvaluation and image generation complete.");
@@ -145,13 +144,9 @@ async function main(): Promise<void> {
     console.log(`Evaluation JSON: ${evaluationPath}`);
     console.log("\nModel token usage:");
     console.log(`  Input tokens:          ${evaluation.usage.inputTokens}`);
-    console.log(
-      `  Cached input tokens:   ${evaluation.usage.cachedInputTokens}`,
-    );
+    console.log(`  Cached input tokens:   ${evaluation.usage.cachedInputTokens}`);
     console.log(`  Output tokens:         ${evaluation.usage.outputTokens}`);
-    console.log(
-      `  Reasoning tokens:      ${evaluation.usage.reasoningTokens}`,
-    );
+    console.log(`  Reasoning tokens:      ${evaluation.usage.reasoningTokens}`);
     console.log(`  Total tokens:          ${evaluation.usage.totalTokens}`);
     console.log("  Image generation:      0 (local Sharp renderer)");
   } finally {

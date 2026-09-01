@@ -53,3 +53,11 @@ The evaluator returns integer pixel coordinates relative to the student-script
 image, with `(0, 0)` at the top-left. Circles use `center: [x, y]` and `radius`,
 underlines use `start` and `end`, ticks use `points`, and boxes use pixel `x`,
 `y`, `width`, and `height` values.
+
+The evaluator also returns `questionScores`, one entry per distinguishable
+answerable question or sub-question. Each entry contains the earned `score`,
+its `maxScore`, and an `x`/`y` anchor at the left edge and vertical center of
+the corresponding answer. The rendered image places the earned mark beside
+that answer and left-pads one-character integer marks (`1` becomes `01`). The
+overall score remains in `evaluation.json`; it is not drawn as a fixed badge on
+the script image.

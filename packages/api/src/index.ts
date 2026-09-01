@@ -27,12 +27,7 @@ const evaluateSchema = z.object({
 export function createApi(service: TeacherBrowserService) {
   return new Hono()
     .use("*", requestId())
-    .use(
-      "*",
-      logger((message, ...rest) => {
-        logEvent("http.log", { message, details: rest })
-      })
-    )
+    .use("*", logger())
     .use("/api/*", cors({ origin: (origin) => origin || "*" }))
     .onError((error, c) => {
       const apiError =

@@ -1,7 +1,7 @@
-import { ScrollArea } from "@workspace/ui/components/scroll-area";
-import { Skeleton } from "@workspace/ui/components/skeleton";
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
+import { Skeleton } from "@workspace/ui/components/skeleton"
 
-import type { Capture } from "../lib/api";
+import type { Capture } from "../lib/api"
 
 import {
   Dialog,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@workspace/ui/components/dialog";
+} from "@workspace/ui/components/dialog"
 
 export function ReferencePanel({ capture }: { capture?: Capture }) {
   return (
@@ -17,7 +17,9 @@ export function ReferencePanel({ capture }: { capture?: Capture }) {
       <ScrollArea className="h-full">
         <div className="mb-4">
           <p className="font-semibold text-sm">Reference</p>
-          <p className="mt-1 text-muted-foreground text-xs">Question and sample answer</p>
+          <p className="mt-1 text-muted-foreground text-xs">
+            Question and sample answer
+          </p>
         </div>
         {capture ? (
           <div className="flex flex-col gap-4">
@@ -55,25 +57,5 @@ export function ReferencePanel({ capture }: { capture?: Capture }) {
         )}
       </ScrollArea>
     </aside>
-  );
-}
-
-function ReferenceCard({ image, alt, label }: { label: string; image: string; alt: string }) {
-  return (
-    <Dialog>
-      <DialogTrigger>
-        <img
-          className="border rounded w-full h-auto max-h-[70vh] object-contain"
-          src={image}
-          alt={alt}
-        />
-      </DialogTrigger>
-      <DialogContent className="w-full max-w-4xl sm:max-w-4xl max-h-[90vh] overflow-auto">
-        <DialogHeader>
-          <DialogTitle>{label}</DialogTitle>
-        </DialogHeader>
-        <img className="w-full max-w-full h-auto object-contain" src={image} alt={alt} />
-      </DialogContent>
-    </Dialog>
-  );
+  )
 }

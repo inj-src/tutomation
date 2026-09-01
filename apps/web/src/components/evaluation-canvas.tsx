@@ -3,9 +3,15 @@ import {
   convertToExcalidrawElements,
   FONT_FAMILY,
 } from "@excalidraw/excalidraw"
-import type { BinaryFiles, DataURL } from "@excalidraw/excalidraw/types"
+import type {
+  BinaryFiles,
+  DataURL,
+  ExcalidrawImperativeAPI,
+} from "@excalidraw/excalidraw/types"
+import type { KeyboardEvent, PointerEvent, WheelEvent } from "react"
 
 import type { Capture, EvaluationResult } from "../lib/api"
+import "./evaluation-canvas.css"
 
 type FileId = string & { readonly _brand: "FileId" }
 type ElementSkeleton = NonNullable<
@@ -207,38 +213,85 @@ export function EvaluationCanvas({
   capture,
   evaluation,
   revision,
+  onApi,
 }: {
   capture: Capture
   evaluation?: EvaluationResult["evaluation"]
   revision: number
+  onApi?: (api: ExcalidrawImperativeAPI) => void
 }) {
   const scene = sceneFor(capture, evaluation)
+  const ratio = capture.canvas.pixelWidth / capture.canvas.pixelHeight
+  const frameStyle = {
+    width: ratio >= 1 ? "100%" : `${ratio * 100}%`,
+    height: ratio >= 1 ? `${100 / ratio}%` : "100%",
+  }
+
+  const blockNavigation = (event: PointerEvent | KeyboardEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
   return (
-    <div className="h-full min-h-0 min-w-0 overflow-hidden rounded-lg border bg-white">
-      <Excalidraw
-        key={`${capture.candidate.pendingQuestion}-${revision}`}
-        initialData={{
-          elements: scene.elements,
-          files: scene.files,
-          scrollToContent: true,
-          appState: {
-            viewModeEnabled: false,
-            zenModeEnabled: false,
-            gridModeEnabled: false,
-          },
+    <div className="evaluation-canvas flex h-full min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-lg border bg-white">
+      <div
+        className="evaluation-canvas-frame"
+        style={frameStyle}
+        onWheelCapture={(event: WheelEvent) => event.stopPropagation()}
+        onPointerDownCapture={(event) => {
+          if (event.button === 1) blockNavigation(event)
         }}
-        viewModeEnabled={false}
-        zenModeEnabled={false}
-        gridModeEnabled={false}
-        UIOptions={{
-          canvasActions: {
-            clearCanvas: false,
-            export: false,
-            saveToActiveFile: false,
-            toggleTheme: false,
-          },
+        onKeyDownCapture={(event) => {
+          if (
+            !(event.target instanceof HTMLInputElement) &&
+            !(event.target instanceof HTMLTextAreaElement) &&
+            (event.code === "Space" ||
+              event.key === "h" ||
+              event.key === "H" ||
+              event.key === "+" ||
+              event.key === "-" ||
+              event.key === "=" ||
+              event.key === "0")
+          ) {
+            blockNavigation(event)
+          }
         }}
-      />
+        onKeyUpCapture={(event) => {
+          if (event.code === "Space") {
+            blockNavigation(event)
+          }
+        }}
+      >
+        <Excalidraw
+          key={`${capture.candidate.pendingQuestion}-${revision}`}
+          initialData={{
+            elements: scene.elements,
+            files: scene.files,
+            scrollToContent: true,
+            appState: {
+              viewModeEnabled: false,
+              zenModeEnabled: false,
+              gridModeEnabled: false,
+              currentItemStrokeColor: "#d62f2f",
+            },
+          }}
+          viewModeEnabled={false}
+          zenModeEnabled={false}
+          gridModeEnabled={false}
+          excalidrawAPI={onApi}
+          UIOptions={{
+            canvasActions: {
+              clearCanvas: false,
+              export: false,
+              saveToActiveFile: false,
+              toggleTheme: false,
+            },
+            tools: {
+              image: false,
+            },
+          }}
+        />
+      </div>
     </div>
   )
 }

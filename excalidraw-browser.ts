@@ -102,6 +102,7 @@ function makeElements(input: OverlayInput): OverlayElement[] {
             strokeWidth: typeof element.strokeWidth === "number"
               ? element.strokeWidth
               : DEFAULT_STROKE_WIDTH + 1,
+            roughness: typeof element.roughness === "number" ? element.roughness : 1.5,
           }),
         };
       }
@@ -123,6 +124,7 @@ function makeElements(input: OverlayInput): OverlayElement[] {
             strokeWidth: typeof element.strokeWidth === "number"
               ? element.strokeWidth
               : DEFAULT_STROKE_WIDTH,
+            roughness: typeof element.roughness === "number" ? element.roughness : 1.5,
           }),
         };
       }

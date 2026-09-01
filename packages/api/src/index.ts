@@ -1,8 +1,11 @@
 import { cors } from "hono/cors"
 import { Hono } from "hono"
+import { logger } from "hono/logger"
+import { requestId } from "hono/request-id"
 import { zValidator } from "@hono/zod-validator"
 import { z } from "zod"
 
+import { logError, logEvent } from "./core/event-log.js"
 import { ApiError, TeacherBrowserService } from "./service.js"
 import { candidateId } from "./core/site.js"
 
@@ -23,11 +26,24 @@ const evaluateSchema = z.object({
 
 export function createApi(service: TeacherBrowserService) {
   return new Hono()
+    .use("*", requestId())
+    .use(
+      "*",
+      logger((message, ...rest) => {
+        logEvent("http.log", { message, details: rest })
+      })
+    )
     .use("/api/*", cors({ origin: (origin) => origin || "*" }))
     .onError((error, c) => {
       const apiError =
         error instanceof ApiError ? error : new ApiError(error.message)
-      console.error(`[api:${apiError.code}] ${apiError.message}`)
+      logError("http.error", error, {
+        requestId: c.var.requestId,
+        method: c.req.method,
+        path: c.req.path,
+        status: apiError.status,
+        code: apiError.code,
+      })
       return c.json(
         {
           error: {
@@ -62,9 +78,36 @@ export function createApi(service: TeacherBrowserService) {
       zValidator("json", evaluateSchema),
       async (c) => {
         const { retryNote } = c.req.valid("json")
-        return c.json(
-          await service.evaluate(c.req.param("candidateId"), retryNote)
-        )
+        const candidateIdValue = c.req.param("candidateId")
+        const startedAt = Date.now()
+        logEvent("ai.evaluation.started", {
+          requestId: c.var.requestId,
+          candidateId: candidateIdValue,
+          modelId: process.env.MODEL_ID ?? "gpt-5.6-luna",
+          hasRetryNote: Boolean(retryNote),
+        })
+
+        try {
+          const result = await service.evaluate(candidateIdValue, retryNote)
+          logEvent("ai.evaluation.completed", {
+            requestId: c.var.requestId,
+            candidateId: candidateIdValue,
+            durationMs: Date.now() - startedAt,
+            score: result.evaluation.score,
+            questionScoreCount: result.evaluation.questionScores.length,
+            annotationCount: result.evaluation.annotations.length,
+            usage: result.evaluation.usage,
+            responseId: result.evaluation.responseId,
+          })
+          return c.json(result)
+        } catch (error) {
+          logError("ai.evaluation.failed", error, {
+            requestId: c.var.requestId,
+            candidateId: candidateIdValue,
+            durationMs: Date.now() - startedAt,
+          })
+          throw error
+        }
       }
     )
     .post("/api/entries/:candidateId/submit", async (c) => {

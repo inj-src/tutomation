@@ -1,5 +1,11 @@
 node_modules/
 .auth/
+runs/
+dist/
+.output/
+.turbo/
 playwright-report/
 test-results/
-runs/
+coverage/
+*.local
+*.tsbuildinfo

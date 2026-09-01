@@ -8,6 +8,10 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [],
+  "references": [
+    { "path": "./packages/api" },
+    { "path": "./apps/server" },
+    { "path": "./apps/cli" }
+  ]
 }

@@ -1,0 +1,25 @@
+{
+  "name": "server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "@hono/node-server": "latest",
+    "@repo/api": "workspace:*"
+  },
+  "devDependencies": {
+    "@tanstack/eslint-config": "^0.4.0",
+    "@types/node": "latest",
+    "eslint": "^10.9.1",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

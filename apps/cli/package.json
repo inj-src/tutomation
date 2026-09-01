@@ -1,0 +1,26 @@
+{
+  "name": "cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "login": "tsx src/index.ts login",
+    "evaluate": "tsx src/index.ts evaluate",
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "@repo/api": "workspace:*",
+    "hono": "latest"
+  },
+  "devDependencies": {
+    "@tanstack/eslint-config": "^0.4.0",
+    "@types/node": "latest",
+    "eslint": "^10.9.1",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@repo/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "@excalidraw/excalidraw": "latest",
+    "@hono/zod-validator": "^0.9.0",
+    "ai": "latest",
+    "hono": "latest",
+    "openai-oauth-provider": "latest",
+    "playwright": "latest",
+    "roughjs": "latest",
+    "sharp": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@tanstack/eslint-config": "^0.4.0",
+    "@types/node": "latest",
+    "esbuild": "latest",
+    "eslint": "^10.9.1",
+    "typescript": "latest"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./types": "./src/types.ts"
+  }
+}

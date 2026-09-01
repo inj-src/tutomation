@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { performance } from "node:perf_hooks";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
@@ -67,16 +68,34 @@ function timestamp(): string {
 }
 
 async function main(): Promise<void> {
+  const runStartedAt = performance.now();
+  const timings: Record<string, number> = {};
   const terminal = createInterface({ input, output });
   const site = new TeacherSite(terminal);
 
   try {
+    const siteOpenStartedAt = performance.now();
     await site.open();
-    const loadCategories = async () =>
-      (await site.listCategories()).map((value) => ({
-        ...value,
-        label: `${value.examName} | Pending: ${value.pending}`,
-      }));
+    timings.siteOpen = performance.now() - siteOpenStartedAt;
+
+    const selectionStartedAt = performance.now();
+    const loadCategories = async () => {
+      try {
+        const categories = await site.listCategories();
+        if (categories.length === 0) {
+          console.warn("Warning: No script categories are currently available.");
+        }
+
+        return categories.map((value) => ({
+          ...value,
+          label: `${value.examName} | Pending: ${value.pending}`,
+        }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Warning: Could not load script categories: ${message}`);
+        return [];
+      }
+    };
     const category = await choose(
       terminal,
       "Available script categories",
@@ -84,22 +103,37 @@ async function main(): Promise<void> {
       loadCategories,
     );
 
-    const loadCandidates = async () =>
-      (await site.listCandidates(category)).map((value) => ({
-        ...value,
-        label: candidateLabel(value),
-      }));
+    const loadCandidates = async () => {
+      try {
+        const candidates = await site.listCandidates(category);
+        if (candidates.length === 0) {
+          console.warn("Warning: No scripts are currently available in this category.");
+        }
+
+        return candidates.map((value) => ({
+          ...value,
+          label: candidateLabel(value),
+        }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Warning: Could not load scripts: ${message}`);
+        return [];
+      }
+    };
     const candidate = await choose(
       terminal,
       `Available scripts in ${category.examName}`,
       await loadCandidates(),
       loadCandidates,
     );
+    timings.categoryAndScriptSelection = performance.now() - selectionStartedAt;
 
     const outputDirectory = `runs/${timestamp()}-exam-${candidate.examId}-script-${candidate.pendingQuestion}`;
     console.log("\nStarting evaluation and capturing browser assets...");
+    const captureStartedAt = performance.now();
     const capture = await site.capture(candidate, outputDirectory);
     await site.close();
+    timings.captureAndBrowserClose = performance.now() - captureStartedAt;
 
     const categoryKey = [
       candidate.examId,
@@ -110,14 +144,17 @@ async function main(): Promise<void> {
       candidate.questionVersion,
     ].join("-");
     const evaluator = new CategoryEvaluator(categoryKey);
+    const aiStartedAt = performance.now();
     const evaluation = await evaluator.evaluateFirst({
       questionPath: capture.questionPath,
       sampleAnswerPath: capture.sampleAnswerPath,
       studentScriptPath: capture.studentScriptPath,
       maxScore: capture.maxScore,
     });
+    timings.aiEvaluation = performance.now() - aiStartedAt;
 
     const evaluationPath = `${outputDirectory}/evaluation.json`;
+    const evaluationWriteStartedAt = performance.now();
     await writeFile(
       evaluationPath,
       JSON.stringify(
@@ -131,13 +168,20 @@ async function main(): Promise<void> {
         2,
       ),
     );
+    timings.evaluationJsonWrite = performance.now() - evaluationWriteStartedAt;
 
     const annotatedPath = `${outputDirectory}/evaluated.png`;
+    const renderStartedAt = performance.now();
     await renderEvaluation({
       sourcePath: capture.studentScriptPath,
       outputPath: annotatedPath,
       evaluation,
     });
+    timings.localAnnotationRender = performance.now() - renderStartedAt;
+
+    const totalMs = performance.now() - runStartedAt;
+    const aiMs = timings.aiEvaluation ?? 0;
+    const nonAiMs = totalMs - aiMs;
 
     console.log("\nEvaluation and image generation complete.");
     console.log(`Annotated image: ${annotatedPath}`);
@@ -149,6 +193,15 @@ async function main(): Promise<void> {
     console.log(`  Reasoning tokens:      ${evaluation.usage.reasoningTokens}`);
     console.log(`  Total tokens:          ${evaluation.usage.totalTokens}`);
     console.log("  Image generation:      0 (local Sharp renderer)");
+    console.log("\nStage timings:");
+    console.log(`  Site browser startup:  ${(timings.siteOpen / 1000).toFixed(2)} s`);
+    console.log(`  CLI/site selection:    ${(timings.categoryAndScriptSelection / 1000).toFixed(2)} s`);
+    console.log(`  Asset capture + close:  ${(timings.captureAndBrowserClose / 1000).toFixed(2)} s`);
+    console.log(`  AI evaluation:         ${(aiMs / 1000).toFixed(2)} s`);
+    console.log(`  Evaluation JSON write:  ${(timings.evaluationJsonWrite / 1000).toFixed(2)} s`);
+    console.log(`  Local annotation:      ${(timings.localAnnotationRender / 1000).toFixed(2)} s`);
+    console.log(`  Non-AI subtotal:       ${(nonAiMs / 1000).toFixed(2)} s`);
+    console.log(`  Full run:               ${(totalMs / 1000).toFixed(2)} s`);
   } finally {
     terminal.close();
     await site.close();

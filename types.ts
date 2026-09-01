@@ -1,4 +1,4 @@
-export type AnnotationKind = "underline" | "circle" | "tick" | "text" | "box";
+export type AnnotationKind = "underline" | "circle" | "oval" | "tick" | "text" | "box";
 
 export type PixelPoint = number[];
 
@@ -10,6 +10,8 @@ export type Annotation = {
   height: number | null;
   center: PixelPoint | null;
   radius: number | null;
+  radiusX: number | null;
+  radiusY: number | null;
   start: PixelPoint | null;
   end: PixelPoint | null;
   text: string | null;

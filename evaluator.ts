@@ -5,12 +5,8 @@ import { createOpenAIOAuth } from "openai-oauth-provider";
 import sharp from "sharp";
 import { z } from "zod";
 
+import { canonicalImageSize, type ImageSize } from "./image-scale.js";
 import type { GeneratedEvaluation, TokenUsage } from "./types.js";
-
-type ImageSize = {
-  width: number;
-  height: number;
-};
 
 function pointSchema(size: ImageSize) {
   return z.array(z.number().int().min(0).max(Math.max(size.width, size.height))).length(2);
@@ -34,13 +30,15 @@ function evaluationSchema(size: ImageSize, maxScore: number) {
     ),
     annotations: z.array(
       z.object({
-        kind: z.enum(["underline", "circle", "tick", "text", "box"]),
+        kind: z.enum(["underline", "circle", "oval", "tick", "text", "box"]),
         x: z.number().int().min(0).max(size.width).nullable(),
         y: z.number().int().min(0).max(size.height).nullable(),
         width: z.number().int().min(0).max(size.width).nullable(),
         height: z.number().int().min(0).max(size.height).nullable(),
         center: point.nullable(),
         radius: z.number().int().min(1).max(Math.max(size.width, size.height)).nullable(),
+        radiusX: z.number().int().min(1).max(Math.max(size.width, size.height)).nullable(),
+        radiusY: z.number().int().min(1).max(Math.max(size.width, size.height)).nullable(),
         start: point.nullable(),
         end: point.nullable(),
         text: z.string().nullable(),
@@ -60,6 +58,46 @@ type EvaluationContent =
 
 function dataUrl(bytes: Uint8Array): string {
   return `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
+}
+
+function scaledPoint(value: number[] | null, scale: number): number[] | null {
+  return value?.map((coordinate) => Math.max(0, Math.round(coordinate * scale))) ?? null;
+}
+
+function scaledPositive(value: number | null, scale: number): number | null {
+  return value === null ? null : Math.max(1, Math.round(value * scale));
+}
+
+function restoreOriginalCoordinates(
+  evaluation: GeneratedEvaluation,
+  scale: number,
+  size: ImageSize,
+): GeneratedEvaluation {
+  const restoreCoordinate = (value: number, limit: number): number =>
+    Math.min(limit, Math.max(0, Math.round(value * scale)));
+
+  return {
+    ...evaluation,
+    questionScores: evaluation.questionScores.map((questionScore) => ({
+      ...questionScore,
+      x: restoreCoordinate(questionScore.x, size.width),
+      y: restoreCoordinate(questionScore.y, size.height),
+    })),
+    annotations: evaluation.annotations.map((annotation) => ({
+      ...annotation,
+      x: annotation.x === null ? null : restoreCoordinate(annotation.x, size.width),
+      y: annotation.y === null ? null : restoreCoordinate(annotation.y, size.height),
+      width: scaledPositive(annotation.width, scale),
+      height: scaledPositive(annotation.height, scale),
+      center: scaledPoint(annotation.center, scale),
+      radius: scaledPositive(annotation.radius, scale),
+      radiusX: scaledPositive(annotation.radiusX, scale),
+      radiusY: scaledPositive(annotation.radiusY, scale),
+      start: scaledPoint(annotation.start, scale),
+      end: scaledPoint(annotation.end, scale),
+      points: annotation.points?.map((value) => scaledPoint(value, scale) ?? []) ?? null,
+    })),
+  };
 }
 
 async function imageSize(path: string): Promise<ImageSize> {
@@ -114,7 +152,7 @@ export class CategoryEvaluator {
       openai: {
         store: false,
         promptCacheKey: this.promptCacheKey,
-        reasoningEffort: process.env.REASONING_EFFORT ?? "low",
+        reasoningEffort: process.env.REASONING_EFFORT ?? "high",
         ...(this.previousResponseId ? { previousResponseId: this.previousResponseId } : {}),
       },
     };
@@ -129,7 +167,7 @@ export class CategoryEvaluator {
     const result = await generateText({
       model: this.model,
       system:
-        "You evaluate handwritten student answers. Compare the student answer with the question and sample answer. Award a fair score between zero and the full marks. Return one questionScores entry for every distinguishable answerable question or sub-question. Keep each score within that part's maxScore, and make the sum of the part scores equal the total score. For each questionScores entry, return the part label, earned score, maximum score, and an integer pixel anchor at the left edge and vertical center of that answer's visible work. The renderer will place the earned mark immediately to the left of that anchor. Return concise comments of two or three words. Use underlines for wrong portions, circles for wrong words or formulas, and ticks only where useful. Use integer pixel coordinates with (0, 0) at the top-left, x increasing to the right, and y increasing downward. For circles, return center [x, y] and radius. For underlines, return start [x, y] and end [x, y]. For ticks, return points. For boxes, return x, y, width, and height. For text, return x and y. Every annotation must overlap the relevant visible handwriting; do not invent annotations when the target is uncertain. Never return normalized 0-to-1 coordinates. The renderer formats earned marks shorter than two characters with a leading zero, so numeric scores should be returned as numbers.",
+        "You evaluate handwritten student answers. Compare the student answer with the question and sample answer. Award a fair score between zero and the full marks. Return one questionScores entry for every distinguishable answerable question or sub-question. Keep each score within that part's maxScore, and make the sum of the part scores equal the total score. For each questionScores entry, return the part label, earned score, maximum score, and an integer pixel anchor at the left edge and vertical center of that answer's visible work. The renderer will place the earned mark immediately to the left of that anchor. If an answer area is blank or absent, give it zero but return no annotations and no comment for it. If visible work was attempted but is materially wrong, add one or two local annotations and a concise two- or three-word comment in the annotation's text field. The renderer displays that text beside the mark. Use underlines for wrong portions, ovals for one wrong word, symbol, or short formula, and ticks only where useful. Ovals should look naturally hand-drawn and must tightly enclose the specific problematic content: never draw a canvas-wide, answer-wide, line-wide, or section-wide oval. An oval's width and height must each be no more than one third of the shorter image dimension; use an underline for a long expression. Return oval center [x, y] with radiusX and radiusY; use circle with radius only when a genuinely round shape is appropriate. Use integer pixel coordinates with (0, 0) at the top-left, x increasing to the right, and y increasing downward. For circles, return center [x, y] and radius. For underlines, return start [x, y] and end [x, y]. For ticks, return points. For boxes, return x, y, width, and height. For text, return x and y. Every annotation must overlap the relevant visible handwriting; do not annotate blank space or invent annotations when the target is uncertain. Never return normalized 0-to-1 coordinates. The renderer formats earned marks shorter than two characters with a leading zero, so numeric scores should be returned as numbers.",
       messages: [
         {
           role: "user",
@@ -169,26 +207,33 @@ export class CategoryEvaluator {
     studentScriptPath: string;
     maxScore: number;
   }): Promise<GeneratedEvaluation> {
-    const [question, sampleAnswer, studentScript, size] = await Promise.all([
+    const [question, sampleAnswer, studentScript, originalSize] = await Promise.all([
       readFile(input.questionPath),
       readFile(input.sampleAnswerPath),
       readFile(input.studentScriptPath),
       imageSize(input.studentScriptPath),
     ]);
+    const canonicalSize = canonicalImageSize(originalSize.width, originalSize.height);
+    const canonicalStudentScript = await sharp(studentScript)
+      .resize(canonicalSize.width, canonicalSize.height, { fit: "fill", kernel: sharp.kernel.lanczos3 })
+      .png()
+      .toBuffer();
 
-    return this.request(
-      `This is the first script in this category. The full marks are ${input.maxScore}. The student-script image dimensions are ${size.width}×${size.height} pixels. Evaluate the student script and return the total score, per-question scores, and annotations. For each answerable question or sub-question, place its score anchor at the left edge and vertical center of the corresponding visible answer. Keep all visible comments short.`,
+    const evaluation = await this.request(
+      `This is the first script in this category. The full marks are ${input.maxScore}. The student-script image dimensions are ${canonicalSize.width}×${canonicalSize.height} pixels. Evaluate the student script and return the total score, per-question scores, and annotations. For each answerable question or sub-question, place its score anchor at the left edge and vertical center of the corresponding visible answer. Keep all visible comments short.`,
       [
         { type: "text", text: "Reference image: question" },
         { type: "file", mediaType: "image/png", data: dataUrl(question) },
         { type: "text", text: "Reference image: sample answer" },
         { type: "file", mediaType: "image/png", data: dataUrl(sampleAnswer) },
         { type: "text", text: "Target image: student script" },
-        { type: "file", mediaType: "image/png", data: dataUrl(studentScript) },
+        { type: "file", mediaType: "image/png", data: dataUrl(canonicalStudentScript) },
       ],
       input.maxScore,
-      size,
+      canonicalSize,
     );
+
+    return restoreOriginalCoordinates(evaluation, 1 / canonicalSize.scale, originalSize);
   }
 
   async evaluateNext(input: {
@@ -201,20 +246,27 @@ export class CategoryEvaluator {
       throw new Error("Cannot evaluate a follow-up before the first request.");
     }
 
-    const [studentScript, size] = await Promise.all([
+    const [studentScript, originalSize] = await Promise.all([
       readFile(input.studentScriptPath),
       imageSize(input.studentScriptPath),
     ]);
+    const canonicalSize = canonicalImageSize(originalSize.width, originalSize.height);
+    const canonicalStudentScript = await sharp(studentScript)
+      .resize(canonicalSize.width, canonicalSize.height, { fit: "fill", kernel: sharp.kernel.lanczos3 })
+      .png()
+      .toBuffer();
     const retryNote = input.retryNote ? ` Teacher note: ${input.retryNote}` : "";
 
-    return this.request(
-      `Evaluate only the new student script for script ID ${input.scriptId}. Continue using the question and sample answer context from the previous request. The student-script image dimensions are ${size.width}×${size.height} pixels. Full marks are ${input.maxScore}. Return the total score, one score entry for each distinguishable answerable question or sub-question, and the annotations. Place each score anchor at the left edge and vertical center of its corresponding visible answer.${retryNote}`,
+    const evaluation = await this.request(
+      `Evaluate only the new student script for script ID ${input.scriptId}. Continue using the question and sample answer context from the previous request. The student-script image dimensions are ${canonicalSize.width}×${canonicalSize.height} pixels. Full marks are ${input.maxScore}. Return the total score, one score entry for each distinguishable answerable question or sub-question, and the annotations. Place each score anchor at the left edge and vertical center of its corresponding visible answer.${retryNote}`,
       [
         { type: "text", text: "Target image: student script" },
-        { type: "file", mediaType: "image/png", data: dataUrl(studentScript) },
+        { type: "file", mediaType: "image/png", data: dataUrl(canonicalStudentScript) },
       ],
       input.maxScore,
-      size,
+      canonicalSize,
     );
+
+    return restoreOriginalCoordinates(evaluation, 1 / canonicalSize.scale, originalSize);
   }
 }

@@ -165,7 +165,9 @@ export class TeacherSite {
   async listCategories(): Promise<ScriptCategory[]> {
     const page = await this.navigate(indexUrl);
     const rows = page
-      .locator("table tbody tr")
+      .locator("table")
+      .filter({ has: page.locator("th", { hasText: /^Pending$/i }) })
+      .locator("tbody tr")
       .filter({ has: page.locator('a[href*="NewScriptEvaluationDetails"]') });
     const count = await rows.count();
 

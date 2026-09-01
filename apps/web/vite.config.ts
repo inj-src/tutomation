@@ -1,10 +1,10 @@
-import { TanStackRouterVite } from "@tanstack/router-plugin/vite"
-import react from "@vitejs/plugin-react"
-import tailwindcss from "@tailwindcss/vite"
-import { defineConfig } from "vite"
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [TanStackRouterVite(), tailwindcss(), react()],
+  plugins: [tanstackRouter(), tailwindcss(), react()],
   server: {
     proxy: {
       "/api": {
@@ -13,4 +13,4 @@ export default defineConfig({
       },
     },
   },
-})
+});

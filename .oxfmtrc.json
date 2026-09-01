@@ -1,0 +1,29 @@
+{
+  "endOfLine": "lf",
+  "semi": false,
+  "singleQuote": false,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "printWidth": 80,
+  "sortPackageJson": false,
+  "sortTailwindcss": {
+    "stylesheet": "packages/ui/src/styles/globals.css",
+    "functions": [
+      "cn",
+      "cva"
+    ]
+  },
+  "ignorePatterns": [
+    "dist/",
+    "node_modules/",
+    ".turbo/",
+    ".output/",
+    ".nitro/",
+    ".tanstack/",
+    ".vinxi/",
+    "coverage/",
+    "pnpm-lock.yaml",
+    ".pnpm-store/",
+    "apps/web/src/routeTree.gen.ts"
+  ]
+}

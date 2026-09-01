@@ -1,5 +1,10 @@
 export type AnnotationKind =
-  "underline" | "circle" | "oval" | "tick" | "text" | "box"
+  | "underline"
+  | "circle"
+  | "oval"
+  | "tick"
+  | "text"
+  | "box"
 
 export type PixelPoint = number[]
 

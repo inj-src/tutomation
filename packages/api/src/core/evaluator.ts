@@ -72,10 +72,12 @@ type EvaluationOutput = z.infer<ReturnType<typeof evaluationSchema>>
 
 type EvaluationContent =
   | { type: "text"; text: string }
-  | { type: "file"; mediaType: "image/png"; data: string }
+  | { type: "file"; mediaType: "image/png"; data: URL }
 
-function dataUrl(bytes: Uint8Array): string {
-  return `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`
+function imageUrl(bytes: Uint8Array): URL {
+  return new URL(
+    `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`
+  )
 }
 
 function scaledPoint(value: number[] | null, scale: number): number[] | null {
@@ -275,14 +277,18 @@ export class CategoryEvaluator {
       `This is the first script in this category. The full marks are ${input.maxScore}. The student-script image dimensions are ${canonicalSize.width}×${canonicalSize.height} pixels. Evaluate the student script and return the total score, per-question scores, and annotations. For each answerable question or sub-question, place its score anchor at the left edge and vertical center of the corresponding visible answer. Keep all visible comments short.`,
       [
         { type: "text", text: "Reference image: question" },
-        { type: "file", mediaType: "image/png", data: dataUrl(question) },
+        { type: "file", mediaType: "image/png", data: imageUrl(question) },
         { type: "text", text: "Reference image: sample answer" },
-        { type: "file", mediaType: "image/png", data: dataUrl(sampleAnswer) },
+        {
+          type: "file",
+          mediaType: "image/png",
+          data: imageUrl(sampleAnswer),
+        },
         { type: "text", text: "Target image: student script" },
         {
           type: "file",
           mediaType: "image/png",
-          data: dataUrl(canonicalStudentScript),
+          data: imageUrl(canonicalStudentScript),
         },
       ],
       input.maxScore,
@@ -330,7 +336,7 @@ export class CategoryEvaluator {
         {
           type: "file",
           mediaType: "image/png",
-          data: dataUrl(canonicalStudentScript),
+          data: imageUrl(canonicalStudentScript),
         },
       ],
       input.maxScore,

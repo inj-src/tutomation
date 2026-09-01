@@ -8,15 +8,14 @@
     "dev": "turbo run dev --filter=server --filter=web",
     "lint": "turbo run lint",
     "format": "turbo run format",
+    "format:check": "turbo run format:check",
     "typecheck": "turbo run typecheck",
     "login": "pnpm --filter cli login",
     "evaluate": "pnpm --filter cli evaluate"
   },
   "devDependencies": {
-    "@tanstack/eslint-config": "^0.4.0",
-    "eslint": "^10.9.1",
-    "prettier": "latest",
-    "prettier-plugin-tailwindcss": "^0.8.1",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
     "turbo": "latest"
   }
 }

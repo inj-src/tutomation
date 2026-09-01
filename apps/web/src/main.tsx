@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client"
 
 import { Toaster } from "@workspace/ui/components/sonner"
 import "@workspace/ui/globals.css"
+import "@excalidraw/excalidraw/index.css"
 
 import { getRouter } from "./router"
 
@@ -16,6 +17,7 @@ const queryClient = new QueryClient({
     },
   },
 })
+
 const router = getRouter()
 
 createRoot(document.getElementById("root")!).render(

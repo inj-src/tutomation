@@ -8,17 +8,16 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+    "lint": "oxlint",
+    "format": "oxfmt --write src",
+    "format:check": "oxfmt --check src"
   },
   "dependencies": {
     "@hono/node-server": "latest",
     "@repo/api": "workspace:*"
   },
   "devDependencies": {
-    "@tanstack/eslint-config": "^0.4.0",
     "@types/node": "latest",
-    "eslint": "^10.9.1",
     "tsx": "latest",
     "typescript": "latest"
   }

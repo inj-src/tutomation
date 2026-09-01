@@ -36,7 +36,7 @@ function commonStyle(overrides: Record<string, unknown> = {}): Record<string, un
     fillStyle: "solid",
     strokeStyle: "solid",
     strokeWidth: DEFAULT_STROKE_WIDTH,
-    roughness: 2,
+    roughness: 1.5,
     opacity: 100,
     ...overrides,
   };

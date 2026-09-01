@@ -12,6 +12,7 @@ export type Annotation = {
   radius: number | null;
   radiusX: number | null;
   radiusY: number | null;
+  commentAt: PixelPoint | null;
   start: PixelPoint | null;
   end: PixelPoint | null;
   text: string | null;

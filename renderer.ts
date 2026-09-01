@@ -101,6 +101,42 @@ function lineElement(start: [number, number], end: [number, number]): RenderElem
   };
 }
 
+function scoreUnderlineElement(
+  left: number,
+  right: number,
+  y: number,
+  angle: number,
+  scale: number,
+  width: number,
+  height: number,
+): RenderElement {
+  const extra = 10 * scale;
+  const lineWidth = Math.max(24 * scale, right - left + extra * 2);
+  const centerX = (left + right) / 2;
+  const radians = (angle * Math.PI) / 180;
+  const basePoints: [number, number][] = [
+    [-lineWidth / 2, 0],
+    [-lineWidth * 0.2, 0.5 * scale],
+    [0, 2.5 * scale],
+    [lineWidth * 0.2, 0.5 * scale],
+    [lineWidth / 2, 0],
+  ];
+  const rotatedPoints = basePoints.map(([x, pointY]) => [
+    clamp(centerX + x * Math.cos(radians) - pointY * Math.sin(radians), width),
+    clamp(y + x * Math.sin(radians) + pointY * Math.cos(radians), height),
+  ] as [number, number]);
+  const minX = Math.min(...rotatedPoints.map(([x]) => x));
+  const minY = Math.min(...rotatedPoints.map(([, pointY]) => pointY));
+
+  return {
+    type: "line",
+    x: minX,
+    y: minY,
+    points: rotatedPoints.map(([x, pointY]) => [x - minX, pointY - minY]),
+    strokeWidth: 3 * scale,
+  };
+}
+
 function enlargedTick(
   annotation: Annotation,
   width: number,
@@ -255,9 +291,31 @@ function annotationComment(
     return null;
   }
 
-  let anchorX = 0;
-  let anchorY = 0;
-  let rightEdge = 0;
+  const fontSize = COMMENT_FONT_SIZE * scale;
+  const estimatedWidth = comment.length * fontSize * 0.55;
+  const fits = (x: number, y: number, align: "left" | "right"): RenderElement | null => {
+    const left = align === "right" ? x - estimatedWidth : x;
+    if (left < 0 || left + estimatedWidth > width || y < 0 || y + fontSize > height) {
+      return null;
+    }
+
+    return {
+      type: "text",
+      text: comment,
+      x,
+      y,
+      fontSize,
+      fontWeight: 600,
+      textAlign: align,
+    };
+  };
+
+  const requestedPosition = point(annotation.commentAt, width, height);
+  if (requestedPosition) {
+    return fits(requestedPosition[0], requestedPosition[1], "left");
+  }
+
+  const candidates: Array<[number, number, "left" | "right"]> = [];
 
   if (
     (annotation.kind === "circle" || annotation.kind === "oval") &&
@@ -272,46 +330,50 @@ function annotationComment(
     const radiusX = annotation.kind === "oval"
       ? Math.max(5, Math.min(annotation.radiusX ?? maxRadius, maxRadius))
       : Math.max(5, Math.min(annotation.radius ?? maxRadius, maxRadius));
-    anchorX = coordinate(center[0] + radiusX + 8 * scale, width);
-    anchorY = coordinate(center[1] - (COMMENT_FONT_SIZE * scale) / 2, height);
-    rightEdge = anchorX;
+    const radiusY = annotation.kind === "oval"
+      ? Math.max(5, Math.min(annotation.radiusY ?? maxRadius, maxRadius))
+      : radiusX;
+    const left = center[0] - radiusX;
+    const right = center[0] + radiusX;
+    const top = center[1] - radiusY;
+    candidates.push(
+      [right + 8 * scale, center[1] - fontSize / 2, "left"],
+      [left - 8 * scale, center[1] - fontSize / 2, "right"],
+      [left, top - fontSize - 4 * scale, "left"],
+    );
   } else if (annotation.kind === "underline" && annotation.start) {
     const start = point(annotation.start, width, height);
-    if (!start) {
-      return null;
+    const end = point(annotation.end, width, height);
+    if (start && end) {
+      const left = Math.min(start[0], end[0]);
+      const right = Math.max(start[0], end[0]);
+      const centerY = (start[1] + end[1]) / 2;
+      candidates.push(
+        [right + 8 * scale, centerY - fontSize / 2, "left"],
+        [left - 8 * scale, centerY - fontSize / 2, "right"],
+        [left, Math.min(start[1], end[1]) - fontSize - 4 * scale, "left"],
+      );
     }
-    anchorX = start[0];
-    anchorY = Math.max(0, start[1] - COMMENT_FONT_SIZE * scale - 4 * scale);
-    rightEdge = anchorX;
   } else if (annotation.kind === "box" && annotation.x !== null && annotation.y !== null) {
-    anchorX = coordinate(annotation.x, width);
-    anchorY = Math.max(0, coordinate(annotation.y, height) - COMMENT_FONT_SIZE * scale - 4 * scale);
-    rightEdge = anchorX;
-  } else {
-    return null;
+    const left = coordinate(annotation.x, width);
+    const top = coordinate(annotation.y, height);
+    const boxWidth = annotation.width ?? 0;
+    const boxHeight = annotation.height ?? 0;
+    candidates.push(
+      [left + boxWidth + 8 * scale, top + boxHeight / 2 - fontSize / 2, "left"],
+      [left - 8 * scale, top + boxHeight / 2 - fontSize / 2, "right"],
+      [left, top - fontSize - 4 * scale, "left"],
+    );
   }
 
-  const estimatedWidth = comment.length * COMMENT_FONT_SIZE * scale * 0.55;
-  if (rightEdge + estimatedWidth > width && anchorX >= estimatedWidth + 8) {
-    return {
-      type: "text",
-      text: comment,
-      x: anchorX - 8 * scale,
-      y: anchorY,
-      fontSize: COMMENT_FONT_SIZE * scale,
-      fontWeight: 600,
-      textAlign: "right",
-    };
+  for (const [x, y, align] of candidates) {
+    const result = fits(x, y, align);
+    if (result) {
+      return result;
+    }
   }
 
-  return {
-    type: "text",
-    text: comment,
-    x: Math.min(anchorX, Math.max(0, width - estimatedWidth)),
-    y: anchorY,
-    fontSize: COMMENT_FONT_SIZE * scale,
-    fontWeight: 600,
-  };
+  return null;
 }
 
 function buildElements(
@@ -331,18 +393,31 @@ function buildElements(
     const scoreText = formatScore(questionScore.score);
     const estimatedScoreWidth = scoreText.length * 18 * scale;
     const hasLeftMargin = anchorX >= estimatedScoreWidth + 12 * scale;
+    const scoreX = hasLeftMargin ? anchorX - 10 * scale : 2;
+    const scoreY = Math.max(0, Math.min(height - SCORE_FONT_SIZE * scale, anchorY - (SCORE_FONT_SIZE * scale) / 2));
+    const scoreAngle = -(35 + Math.random() * 20);
+    const scoreLeft = hasLeftMargin ? scoreX - estimatedScoreWidth : scoreX;
+    const scoreRight = hasLeftMargin ? scoreX : scoreX + estimatedScoreWidth;
     return [{
       type: "text",
       text: scoreText,
       // If the answer begins too close to the left edge, keep the mark in
       // the margin instead of moving it across the student's writing.
-      x: hasLeftMargin ? anchorX - 10 * scale : 2,
-      y: Math.max(0, Math.min(height - SCORE_FONT_SIZE * scale, anchorY - (SCORE_FONT_SIZE * scale) / 2)),
+      x: scoreX,
+      y: scoreY,
       fontSize: SCORE_FONT_SIZE * scale,
       fontWeight: 700,
-      angle: -(35 + Math.random() * 20),
+      angle: scoreAngle,
       textAlign: hasLeftMargin ? "right" : "left",
-    }];
+    }, scoreUnderlineElement(
+      scoreLeft,
+      scoreRight,
+      scoreY + SCORE_FONT_SIZE * scale + 3 * scale,
+      scoreAngle,
+      scale,
+      width,
+      height,
+    )];
   });
 
   return [
@@ -443,22 +518,32 @@ export async function renderEvaluation(input: {
   if (!overlayData) {
     throw new Error("Excalidraw overlay did not produce a PNG.");
   }
-  const overlay = Buffer.from(overlayData[1], "base64");
+  const overlay = await sharp(Buffer.from(overlayData[1], "base64"))
+    .resize(workingWidth, workingHeight, {
+      fit: "fill",
+      kernel: sharp.kernel.lanczos3,
+    })
+    .png()
+    .toBuffer();
 
-  const workingSource = scale === 1
+  const workingSource = await (scale === 1
     ? source
     : source.clone().resize(workingWidth, workingHeight, {
         fit: "fill",
         kernel: sharp.kernel.lanczos3,
+      }))
+    .png()
+    .toBuffer();
+  const compositedWorking = await sharp(workingSource)
+    .composite([{ input: overlay, top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+  const output = scale === 1
+    ? sharp(compositedWorking)
+    : sharp(compositedWorking).resize(width, height, {
+        fit: "fill",
+        kernel: sharp.kernel.lanczos3,
       });
-  const output = workingSource.composite([{ input: overlay, top: 0, left: 0 }]);
-
-  if (scale !== 1) {
-    output.resize(width, height, {
-      fit: "fill",
-      kernel: sharp.kernel.lanczos3,
-    });
-  }
 
   await output.png().toFile(input.outputPath);
 

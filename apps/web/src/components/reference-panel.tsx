@@ -1,7 +1,7 @@
-import { ScrollArea } from "@workspace/ui/components/scroll-area"
-import { Skeleton } from "@workspace/ui/components/skeleton"
+import { ScrollArea } from "@workspace/ui/components/scroll-area";
+import { Skeleton } from "@workspace/ui/components/skeleton";
 
-import type { Capture } from "../lib/api"
+import type { Capture } from "../lib/api";
 
 import {
   Dialog,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@workspace/ui/components/dialog"
+} from "@workspace/ui/components/dialog";
 
 export function ReferencePanel({ capture }: { capture?: Capture }) {
   return (
@@ -17,11 +17,9 @@ export function ReferencePanel({ capture }: { capture?: Capture }) {
       <ScrollArea className="h-full">
         <div className="mb-4">
           <p className="font-semibold text-sm">Reference</p>
-          <p className="mt-1 text-muted-foreground text-xs">
-            Question and sample answer
-          </p>
+          <p className="mt-1 text-muted-foreground text-xs">Question and sample answer</p>
         </div>
-        {capture ? (
+        {capture?.status === "ready" && capture.questionImage && capture.sampleAnswerImage ? (
           <div className="flex flex-col gap-4">
             <Dialog>
               <DialogTrigger className="flex flex-col gap-3">
@@ -57,5 +55,5 @@ export function ReferencePanel({ capture }: { capture?: Capture }) {
         )}
       </ScrollArea>
     </aside>
-  )
+  );
 }

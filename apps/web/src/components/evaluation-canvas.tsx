@@ -1,6 +1,6 @@
 import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { KeyboardEvent, PointerEvent, WheelEvent } from "react"
 
 import { useContainedCanvasSize } from "../hooks/use-contained-canvas-size"
@@ -22,7 +22,7 @@ export function EvaluationCanvas({
   revision: number
   onApi?: (api: ExcalidrawImperativeAPI) => void
 }) {
-  const scene = sceneFor(evaluation)
+  const scene = useMemo(() => sceneFor(evaluation), [evaluation])
   const canvasHeight = capture.canvas.pixelHeight + extraBottomSpace
   const ratio = capture.canvas.pixelWidth / canvasHeight
   const { ref, style } = useContainedCanvasSize(ratio)
@@ -35,6 +35,10 @@ export function EvaluationCanvas({
     style.width,
     style.height
   )
+  useEffect(() => {
+    if (!api || !evaluation) return
+    api.updateScene({ elements: scene.elements })
+  }, [api, evaluation, scene.elements])
   const blockNavigation = (event: PointerEvent | KeyboardEvent) => {
     event.preventDefault()
     event.stopPropagation()

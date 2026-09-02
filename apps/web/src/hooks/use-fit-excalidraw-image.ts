@@ -14,7 +14,7 @@ export function useFitExcalidrawImage(
   useEffect(() => {
     if (!api) return
     const frame = requestAnimationFrame(() => {
-      const { width, height, offsetLeft, offsetTop } = api.getAppState()
+      const { width, height } = api.getAppState()
       if (!width || !height) return
       const zoom = Math.min(width / imageWidth, height / imageHeight)
       const normalizedZoom = Math.max(
@@ -24,8 +24,8 @@ export function useFitExcalidrawImage(
       api.updateScene({
         appState: {
           zoom: { value: normalizedZoom },
-          scrollX: -offsetLeft / normalizedZoom,
-          scrollY: -offsetTop / normalizedZoom,
+          scrollX: 0,
+          scrollY: 0,
         },
       })
     })

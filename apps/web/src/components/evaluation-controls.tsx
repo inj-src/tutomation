@@ -9,6 +9,7 @@ import {
   Minus,
   MousePointer2,
   Pencil,
+  Plus,
   Square,
   Type,
 } from "lucide-react"
@@ -28,7 +29,17 @@ const tools: { type: ToolType; label: string; icon: ToolIcon }[] = [
   { type: "eraser", label: "Eraser", icon: Eraser },
 ]
 
-export function EvaluationControls({ api }: { api?: ExcalidrawImperativeAPI }) {
+export function EvaluationControls({
+  api,
+  hasExtraSpace,
+  onAddSpace,
+  onClearSpace,
+}: {
+  api?: ExcalidrawImperativeAPI
+  hasExtraSpace: boolean
+  onAddSpace: () => void
+  onClearSpace: () => void
+}) {
   const [activeTool, setActiveTool] = useState<ToolType>("selection")
 
   useEffect(() => {
@@ -64,6 +75,28 @@ export function EvaluationControls({ api }: { api?: ExcalidrawImperativeAPI }) {
           <Icon />
         </Button>
       ))}
+      <Button
+        className="ml-1"
+        variant="ghost"
+        size="icon"
+        type="button"
+        aria-label="Add 100 pixels below the script"
+        title="Add 100 px below"
+        onClick={onAddSpace}
+      >
+        <Plus />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        type="button"
+        aria-label="Remove extra space below the script"
+        title="Remove extra space"
+        disabled={!hasExtraSpace}
+        onClick={onClearSpace}
+      >
+        <Minus />
+      </Button>
     </div>
   )
 }

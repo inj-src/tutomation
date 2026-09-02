@@ -93,7 +93,9 @@ function categoryKey(candidate: ScriptCandidate): string {
 
 export class TeacherBrowserService {
   private readonly site = new TeacherSite()
+  private readonly categories = new Map<string, ScriptCategory>()
   private readonly captures = new Map<string, StoredCapture>()
+  private readonly candidates = new Map<string, ScriptCandidate>()
   private readonly evaluators = new Map<string, CategoryEvaluator>()
   private readonly sessionsStarted = new Set<string>()
   private queue: Promise<void> = Promise.resolve()
@@ -115,13 +117,20 @@ export class TeacherBrowserService {
   }
 
   async listCategories(): Promise<ScriptCategory[]> {
-    return this.enqueue((site) => site.listCategories())
+    return this.enqueue(async (site) => {
+      const categories = await site.listCategories()
+      for (const category of categories) {
+        this.categories.set(category.examId, category)
+      }
+      return categories
+    })
   }
 
   async listCandidates(examId: string): Promise<ScriptCandidate[]> {
     return this.enqueue(async (site) => {
-      const categories = await site.listCategories()
-      const category = categories.find((value) => value.examId === examId)
+      const category =
+        this.categories.get(examId) ??
+        (await site.listCategories()).find((value) => value.examId === examId)
       if (!category) {
         throw new ApiError(
           "This script category is no longer available. Reload the category list.",
@@ -129,7 +138,11 @@ export class TeacherBrowserService {
           "CATEGORY_NOT_FOUND"
         )
       }
-      return site.listCandidates(category)
+      const candidates = await site.listCandidates(category)
+      for (const candidate of candidates) {
+        this.candidates.set(candidateId(candidate), candidate)
+      }
+      return candidates
     })
   }
 
@@ -137,6 +150,9 @@ export class TeacherBrowserService {
     site: TeacherSite,
     id: string
   ): Promise<ScriptCandidate> {
+    const known = this.candidates.get(id)
+    if (known) return known
+
     const [examId] = id.split("~")
     if (!examId || id.split("~").length !== 7) {
       throw new ApiError(

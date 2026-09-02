@@ -1,11 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises"
 import type { Interface as ReadlineInterface } from "node:readline/promises"
 
 import {
   chromium,
   type Browser,
   type BrowserContext,
-  type Locator,
   type Page,
 } from "playwright"
 
@@ -17,6 +15,7 @@ import {
   loginWithCredentials,
   type TeacherCredentials,
 } from "./auth.js"
+import { captureEvaluation } from "./site-capture.js"
 
 export type ScriptCategory = {
   index: number
@@ -64,8 +63,6 @@ export type EvaluationCapture = {
 
 const baseUrl = "https://teacher.udvash-unmesh.com"
 const indexUrl = `${baseUrl}/Teacher/ScriptEvaluation/Index`
-const evaluationPagePattern =
-  /\/(?:ExamOnlineWrittenQuestionDisplay|ExamSaqQuestionDisplay)(?:\?|$)/i
 
 function text(value: string | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim()
@@ -84,37 +81,6 @@ function urlsEqual(left: string, right: string): boolean {
   return new URL(left).toString() === new URL(right).toString()
 }
 
-function queryUrl(candidate: ScriptCandidate): string {
-  const url = new URL(
-    "/Teacher/OnlineWrittenEvaluation/ExamOnlineWrittenQuestionDisplay",
-    baseUrl
-  )
-
-  url.search = new URLSearchParams({
-    examId: candidate.examId,
-    courseId: candidate.courseId,
-    subjectId: candidate.subjectId,
-    uniqueSet: candidate.uniqueSet,
-    uniqueSetQuestionSerial: candidate.uniqueSetQuestionSerial,
-    questionVersion: candidate.questionVersion,
-    pendingQuestion: candidate.pendingQuestion,
-  }).toString()
-
-  return url.toString()
-}
-
-function candidateButtonSelector(candidate: ScriptCandidate): string {
-  return [
-    `.btnStartEvaluation[data-examid="${candidate.examId}"]`,
-    `[data-courseid="${candidate.courseId}"]`,
-    `[data-subjectid="${candidate.subjectId}"]`,
-    `[data-uniqueset="${candidate.uniqueSet}"]`,
-    `[data-uniquesetquestionserial="${candidate.uniqueSetQuestionSerial}"]`,
-    `[data-questionversion="${candidate.questionVersion}"]`,
-    `[data-pendingquestion="${candidate.pendingQuestion}"]`,
-  ].join("")
-}
-
 export function candidateId(candidate: ScriptCandidate): string {
   return [
     candidate.examId,
@@ -125,14 +91,6 @@ export function candidateId(candidate: ScriptCandidate): string {
     candidate.questionVersion,
     candidate.pendingQuestion,
   ].join("~")
-}
-
-async function waitForFonts(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    if (document.fonts?.ready) {
-      await document.fonts.ready
-    }
-  })
 }
 
 export class TeacherSite {
@@ -184,7 +142,7 @@ export class TeacherSite {
   private async navigate(url: string): Promise<Page> {
     const page = this.currentPage()
     await page.goto(url, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
       timeout: 60_000,
     })
 
@@ -195,7 +153,7 @@ export class TeacherSite {
         this.currentContext()
       )
       await page.goto(url, {
-        waitUntil: "networkidle",
+        waitUntil: "domcontentloaded",
         timeout: 60_000,
       })
 
@@ -214,6 +172,7 @@ export class TeacherSite {
       .filter({ has: page.locator("th", { hasText: /^Pending$/i }) })
       .locator("tbody tr")
       .filter({ has: page.locator('a[href*="NewScriptEvaluationDetails"]') })
+    await rows.first().waitFor({ state: "visible", timeout: 30_000 })
     const count = await rows.count()
 
     if (count === 0) {
@@ -254,6 +213,7 @@ export class TeacherSite {
     const rows = page
       .locator("table tbody tr")
       .filter({ has: page.locator(".btnStartEvaluation") })
+    await rows.first().waitFor({ state: "visible", timeout: 30_000 })
     const count = await rows.count()
 
     if (count === 0) {
@@ -299,226 +259,15 @@ export class TeacherSite {
     return candidates
   }
 
-  private async locateQuestion(page: Page): Promise<Locator> {
-    const marker = page.getByText(/Question\s*:/i).first()
-    await marker.waitFor({ state: "visible", timeout: 30_000 })
-
-    // The question header and rendered `.questionResize` content share the
-    // same table header. The closest ancestor containing "Full Marks" is
-    // only the small header row, so capture the enclosing <th> instead.
-    const block = marker.locator("xpath=ancestor::th[1]")
-
-    if ((await block.count()) > 0 && (await block.first().isVisible())) {
-      return block.first()
-    }
-
-    return marker
-  }
-
-  private async locateSampleTrigger(page: Page): Promise<Locator> {
-    const button = page.getByRole("button", { name: /Sample Answer/i }).first()
-    if ((await button.count()) > 0) {
-      return button
-    }
-
-    const link = page.getByRole("link", { name: /Sample Answer/i }).first()
-    if ((await link.count()) > 0) {
-      return link
-    }
-
-    const textLocator = page.getByText(/Sample Answer/i).first()
-    await textLocator.waitFor({ state: "visible", timeout: 30_000 })
-    return textLocator
-  }
-
-  private async startCandidate(candidate: ScriptCandidate): Promise<Page> {
-    const currentPage = this.currentPage()
-    const page = urlsEqual(currentPage.url(), candidate.detailsUrl)
-      ? currentPage
-      : await this.navigate(candidate.detailsUrl)
-    const button = page.locator(candidateButtonSelector(candidate))
-
-    if ((await button.count()) === 0) {
-      throw new Error(
-        "The selected script is no longer available. Reload the script list and choose another entry."
-      )
-    }
-
-    await button.click()
-
-    try {
-      await page.waitForURL(evaluationPagePattern, {
-        timeout: 30_000,
-      })
-    } catch {
-      const dialog = page.locator(
-        ".bootbox:visible, .modal:visible, [role=dialog]:visible"
-      )
-      const dialogText =
-        (await dialog.count()) > 0 ? text(await dialog.last().innerText()) : ""
-
-      if (dialogText) {
-        throw new Error(
-          `The website did not start the script because it reported: ${dialogText}. Resolve it on the site and retry.`
-        )
-      }
-
-      throw new Error(
-        `Start Evaluation did not navigate to the evaluation page. Current URL: ${page.url()}`
-      )
-    }
-
-    await page.waitForLoadState("networkidle")
-    return page
-  }
-
   async capture(
     candidate: ScriptCandidate,
     outputDirectory: string
   ): Promise<EvaluationCapture> {
-    const page = await this.startCandidate(candidate)
-    const context = this.currentContext()
-    await mkdir(outputDirectory, { recursive: true })
-    await waitForFonts(page)
-
-    const evaluationUrl = page.url()
-    const bodyText = await page.locator("body").innerText()
-    const fullMarksMatch = bodyText.match(
-      /Full\s*Marks\s*:\s*([0-9]+(?:\.[0-9]+)?)/i
-    )
-    const maxScore = fullMarksMatch ? Number(fullMarksMatch[1]) : 0
-
-    if (!maxScore) {
-      throw new Error("Could not read Full Marks from the evaluation page.")
-    }
-
-    const questionLocator = await this.locateQuestion(page)
-    const questionPath = `${outputDirectory}/question.png`
-    await questionLocator.screenshot({
-      path: questionPath,
-      animations: "disabled",
-    })
-
-    const sampleTrigger = await this.locateSampleTrigger(page)
-    const pagesBefore = new Set(context.pages())
-    await sampleTrigger.click()
-    await page.waitForTimeout(750)
-
-    const samplePage =
-      context
-        .pages()
-        .find((candidatePage) => !pagesBefore.has(candidatePage)) ?? page
-    await samplePage.waitForLoadState("networkidle").catch(() => undefined)
-    await waitForFonts(samplePage)
-
-    const sampleContent = samplePage.locator(
-      "#toggleCE:visible, .modal-content:visible, .bootbox-body:visible, .modal:visible, [role=dialog]:visible"
-    )
-    await sampleContent
-      .first()
-      .waitFor({ state: "visible", timeout: 10_000 })
-      .catch(() => undefined)
-    if ((await sampleContent.count()) === 0) {
-      await samplePage.screenshot({
-        path: `${outputDirectory}/capture-debug.png`,
-        fullPage: true,
-      })
-      throw new Error(
-        "Sample Answer was opened, but no visible answer container was found."
-      )
-    }
-
-    const sampleAnswerPath = `${outputDirectory}/sample-answer.png`
-    await sampleContent.first().screenshot({
-      path: sampleAnswerPath,
-      animations: "disabled",
-    })
-
-    if (samplePage !== page) {
-      await samplePage.close()
-    } else {
-      await page.keyboard.press("Escape").catch(() => undefined)
-    }
-
-    const canvases = page.locator("canvas:visible")
-    const canvasCount = await canvases.count()
-    if (canvasCount === 0) {
-      throw new Error("No visible student-script canvas was found.")
-    }
-
-    let canvasIndex = 0
-    let largestArea = -1
-    for (let index = 0; index < canvasCount; index += 1) {
-      const box = await canvases.nth(index).boundingBox()
-      const area = box ? box.width * box.height : 0
-      if (area > largestArea) {
-        largestArea = area
-        canvasIndex = index
-      }
-    }
-
-    const canvas = canvases.nth(canvasIndex)
-    const canvasDetails = await canvas.evaluate((element) => {
-      if (!(element instanceof HTMLCanvasElement)) {
-        throw new Error("Selected student-script element is not a canvas.")
-      }
-
-      const rect = element.getBoundingClientRect()
-      return {
-        dataUrl: element.toDataURL("image/png"),
-        cssWidth: rect.width,
-        cssHeight: rect.height,
-        pixelWidth: element.width,
-        pixelHeight: element.height,
-      }
-    })
-
-    const studentScriptPath = `${outputDirectory}/student-script.png`
-    const commaIndex = canvasDetails.dataUrl.indexOf(",")
-    if (commaIndex < 0) {
-      throw new Error("Canvas did not return a valid PNG data URL.")
-    }
-    await writeFile(
-      studentScriptPath,
-      Buffer.from(canvasDetails.dataUrl.slice(commaIndex + 1), "base64")
-    )
-
-    const metadataPath = `${outputDirectory}/metadata.json`
-    await writeFile(
-      metadataPath,
-      JSON.stringify(
-        {
-          candidate,
-          evaluationUrl,
-          maxScore,
-          viewport: page.viewportSize(),
-          deviceScaleFactor: await page.evaluate(() => window.devicePixelRatio),
-          canvas: {
-            cssWidth: canvasDetails.cssWidth,
-            cssHeight: canvasDetails.cssHeight,
-            pixelWidth: canvasDetails.pixelWidth,
-            pixelHeight: canvasDetails.pixelHeight,
-          },
-        },
-        null,
-        2
-      )
-    )
-
-    return {
-      questionPath,
-      sampleAnswerPath,
-      studentScriptPath,
-      metadataPath,
-      evaluationUrl,
-      maxScore,
-      canvas: {
-        cssWidth: canvasDetails.cssWidth,
-        cssHeight: canvasDetails.cssHeight,
-        pixelWidth: canvasDetails.pixelWidth,
-        pixelHeight: canvasDetails.pixelHeight,
-      },
-    }
+    const currentPage = this.currentPage()
+    const page = urlsEqual(currentPage.url(), candidate.detailsUrl)
+      ? currentPage
+      : await this.navigate(candidate.detailsUrl)
+    return captureEvaluation(page, candidate, outputDirectory)
   }
 
   async close(): Promise<void> {
@@ -529,5 +278,3 @@ export class TeacherSite {
     this.page = undefined
   }
 }
-
-export { queryUrl }

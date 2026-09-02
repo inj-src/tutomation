@@ -47,12 +47,11 @@ export function sceneFor(evaluation?: EvaluationResult["evaluation"]): {
           y: scoreY + fontSize + 4,
           points: [
             [0, 0],
-            [scoreWidth * 0.5, 2],
             [scoreWidth + 10, 0],
           ],
           strokeColor: "#d62f2f",
           strokeWidth: 1.8,
-          roughness: 1.2,
+          roughness: 1.5,
           angle,
         }
       )

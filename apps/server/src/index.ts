@@ -4,6 +4,10 @@ import { app, browserService } from "@repo/api"
 
 const port = Number.parseInt(process.env.PORT ?? "8787", 10)
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[server] Unhandled rejection; keeping server alive:", reason)
+})
+
 serve(
   {
     fetch: app.fetch,

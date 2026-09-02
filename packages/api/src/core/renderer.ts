@@ -129,71 +129,25 @@ function scoreUnderlineElement(
   const centerX = (left + right) / 2
   const radians = (angle * Math.PI) / 180
   const halfWidth = lineWidth / 2
-  const bend = 5 * scale
-  const cubic = (
-    t: number,
-    start: [number, number],
-    control1: [number, number],
-    control2: [number, number],
-    end: [number, number]
-  ): [number, number] => {
-    const inverse = 1 - t
-    return [
-      inverse ** 3 * start[0] +
-        3 * inverse ** 2 * t * control1[0] +
-        3 * inverse * t ** 2 * control2[0] +
-        t ** 3 * end[0],
-      inverse ** 3 * start[1] +
-        3 * inverse ** 2 * t * control1[1] +
-        3 * inverse * t ** 2 * control2[1] +
-        t ** 3 * end[1],
-    ]
-  }
-  const leftCurve: [
-    [number, number],
-    [number, number],
-    [number, number],
-    [number, number],
-  ] = [
-    [-halfWidth, 0],
-    [-halfWidth * 0.55, 0],
-    [-halfWidth * 0.25, bend],
-    [0, bend],
+  const start: [number, number] = [
+    centerX - halfWidth * Math.cos(radians),
+    y - halfWidth * Math.sin(radians),
   ]
-  const rightCurve: [
-    [number, number],
-    [number, number],
-    [number, number],
-    [number, number],
-  ] = [
-    [0, bend],
-    [halfWidth * 0.25, bend],
-    [halfWidth * 0.55, 0],
-    [halfWidth, 0],
+  const end: [number, number] = [
+    centerX + halfWidth * Math.cos(radians),
+    y + halfWidth * Math.sin(radians),
   ]
-  const basePoints = Array.from({ length: 17 }, (_, index) => {
-    const position = index / 16
-    return position <= 0.5
-      ? cubic(position * 2, ...leftCurve)
-      : cubic((position - 0.5) * 2, ...rightCurve)
-  })
-  const rotatedPoints = basePoints.map(
-    ([x, pointY]) =>
-      [
-        centerX + x * Math.cos(radians) - pointY * Math.sin(radians),
-        y + x * Math.sin(radians) + pointY * Math.cos(radians),
-      ] as [number, number]
-  )
-  const minX = Math.min(...rotatedPoints.map(([x]) => x))
-  const minY = Math.min(...rotatedPoints.map(([, pointY]) => pointY))
 
   return {
     type: "line",
-    x: minX,
-    y: minY,
-    points: rotatedPoints.map(([x, pointY]) => [x - minX, pointY - minY]),
+    x: start[0],
+    y: start[1],
+    points: [
+      [0, 0],
+      [end[0] - start[0], end[1] - start[1]],
+    ],
     strokeWidth: 2.5 * scale,
-    roughness: 0.8,
+    roughness: 1.5,
   }
 }
 

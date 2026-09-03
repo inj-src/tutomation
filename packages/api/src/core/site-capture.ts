@@ -50,7 +50,7 @@ async function largestCanvas(page: Page): Promise<{
 
 export type ScriptCapture = Omit<
   EvaluationCapture,
-  "questionPath" | "sampleAnswerPath"
+  "referencePath"
 > & {
   outputDirectory: string
 }
@@ -124,8 +124,7 @@ export async function finalizeCapture(
 ): Promise<EvaluationCapture> {
   const capture: EvaluationCapture = {
     ...script,
-    questionPath: references.questionPath,
-    sampleAnswerPath: references.sampleAnswerPath,
+    referencePath: references.referencePath,
   }
   await writeFile(
     script.metadataPath,

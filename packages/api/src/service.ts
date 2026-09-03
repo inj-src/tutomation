@@ -250,8 +250,7 @@ export class TeacherBrowserService {
             retryNote,
           })
         : await evaluator.evaluateFirst({
-            questionPath: stored.capture.questionPath,
-            sampleAnswerPath: stored.capture.sampleAnswerPath,
+            referencePath: stored.capture.referencePath,
             studentScriptPath: stored.capture.studentScriptPath,
             maxScore: stored.capture.maxScore,
           })

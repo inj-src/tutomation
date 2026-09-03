@@ -18,8 +18,7 @@ export type Capture = {
     pixelHeight: number;
   };
   runDirectory: string;
-  questionImage?: string;
-  sampleAnswerImage?: string;
+  referenceImage?: string;
   studentScriptImage: string;
 };
 

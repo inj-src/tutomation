@@ -52,8 +52,7 @@ export type ScriptCandidate = {
 }
 
 export type EvaluationCapture = {
-  questionPath: string
-  sampleAnswerPath: string
+  referencePath: string
   studentScriptPath: string
   metadataPath: string
   evaluationUrl: string

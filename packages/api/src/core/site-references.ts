@@ -2,25 +2,20 @@ import { mkdir } from "node:fs/promises"
 
 import type { Locator, Page } from "playwright"
 
-const sampleContentSelector =
-  "#toggleCE:visible, .modal-content:visible, .bootbox-body:visible, .modal:visible, [role=dialog]:visible"
-
 async function waitForFonts(page: Page): Promise<void> {
   await page.evaluate(async () => {
     await document.fonts?.ready
   })
 }
 
-async function locateQuestion(page: Page): Promise<Locator> {
-  const content = page
-    .locator(".question-ans-text:visible")
-    .filter({ hasNot: page.locator("#SampleAns") })
-    .first()
-  await content.waitFor({ state: "visible", timeout: 30_000 })
+async function waitForRenderedContent(
+  page: Page,
+  content: Locator,
+  timeout = 30_000
+): Promise<void> {
+  await content.waitFor({ state: "visible", timeout })
   const handle = await content.elementHandle()
-  if (!handle) {
-    throw new Error("The question content could not be located.")
-  }
+  if (!handle) throw new Error("The reference content could not be located.")
   await page.waitForFunction(
     (element) => {
       if (!(element instanceof HTMLElement) || !element.innerText.trim()) {
@@ -39,58 +34,42 @@ async function locateQuestion(page: Page): Promise<Locator> {
       )
     },
     handle,
-    { timeout: 30_000 }
+    { timeout }
   )
   await waitForFonts(page)
-  return content
 }
 
-async function locateSampleTrigger(page: Page): Promise<Locator> {
+async function locateQuestionHeader(page: Page): Promise<{
+  header: Locator
+  trigger: Locator
+}> {
   const trigger = page.locator("#SampleAns").first()
   await trigger.waitFor({ state: "visible", timeout: 30_000 })
-  return trigger
-}
-
-async function openSampleAnswer(page: Page, trigger: Locator): Promise<Page> {
-  const popup = page.waitForEvent("popup", { timeout: 10_000 })
-  const samePage = page
-    .locator(sampleContentSelector)
+  const header = trigger.locator("xpath=ancestor::thead[1]")
+  await header.waitFor({ state: "visible", timeout: 30_000 })
+  const question = header
+    .locator(".questionResize:visible, .question-ans-text:visible")
+    .filter({ hasText: /\S/ })
     .first()
-    .waitFor({ state: "visible", timeout: 10_000 })
-    .then(() => page)
-  await trigger.click()
-  try {
-    return await Promise.any([popup, samePage])
-  } catch {
-    throw new Error(
-      "Sample Answer was opened, but no answer container appeared."
-    )
-  }
+  await waitForRenderedContent(page, question)
+  return { header, trigger }
 }
 
 export async function captureReferences(
   page: Page,
   outputDirectory: string
-): Promise<{ questionPath: string; sampleAnswerPath: string }> {
+): Promise<{ referencePath: string }> {
   await mkdir(outputDirectory, { recursive: true })
-  const questionPath = `${outputDirectory}/question.png`
-  const question = await locateQuestion(page)
-  await question.screenshot({ path: questionPath, animations: "disabled" })
+  const { header, trigger } = await locateQuestionHeader(page)
+  const answer = page.locator("#toggleCE").first()
 
-  const samplePage = await openSampleAnswer(
-    page,
-    await locateSampleTrigger(page)
-  )
-  await samplePage.waitForLoadState("domcontentloaded").catch(() => undefined)
-  await waitForFonts(samplePage)
-  const sampleContent = samplePage.locator(sampleContentSelector).first()
-  await sampleContent.waitFor({ state: "visible", timeout: 10_000 })
-  const sampleAnswerPath = `${outputDirectory}/sample-answer.png`
-  await sampleContent.screenshot({
-    path: sampleAnswerPath,
-    animations: "disabled",
-  })
-  if (samplePage !== page) await samplePage.close()
-  else await page.keyboard.press("Escape").catch(() => undefined)
-  return { questionPath, sampleAnswerPath }
+  try {
+    await trigger.click()
+    await waitForRenderedContent(page, answer, 10_000)
+    const referencePath = `${outputDirectory}/reference.png`
+    await header.screenshot({ path: referencePath, animations: "disabled" })
+    return { referencePath }
+  } finally {
+    await page.keyboard.press("Escape").catch(() => undefined)
+  }
 }

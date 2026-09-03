@@ -204,14 +204,12 @@ export class CategoryEvaluator {
   }
 
   async evaluateFirst(input: {
-    questionPath: string;
-    sampleAnswerPath: string;
+    referencePath: string;
     studentScriptPath: string;
     maxScore: number;
   }): Promise<GeneratedEvaluation> {
-    const [question, sampleAnswer, studentScript, originalSize] = await Promise.all([
-      readFile(input.questionPath),
-      readFile(input.sampleAnswerPath),
+    const [reference, studentScript, originalSize] = await Promise.all([
+      readFile(input.referencePath),
       readFile(input.studentScriptPath),
       imageSize(input.studentScriptPath),
     ]);
@@ -227,13 +225,11 @@ export class CategoryEvaluator {
     const evaluation = await this.request(
       `This is the first script in this category. The full marks are ${input.maxScore}. The student-script image dimensions are ${canonicalSize.width}×${canonicalSize.height} pixels. Evaluate the student script and return the total score, per-question scores, and annotations. For each answerable question or sub-question, place its score anchor at the left edge and vertical center of the corresponding visible answer. Keep all visible comments short.`,
       [
-        { type: "text", text: "Reference image: question" },
-        { type: "file", mediaType: "image/png", data: imageUrl(question) },
-        { type: "text", text: "Reference image: sample answer" },
+        { type: "text", text: "Reference image: question and sample answer" },
         {
           type: "file",
           mediaType: "image/png",
-          data: imageUrl(sampleAnswer),
+          data: imageUrl(reference),
         },
         { type: "text", text: "Target image: student script" },
         {

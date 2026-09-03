@@ -12,8 +12,7 @@ export type PublicCapture = {
   maxScore: number;
   canvas: EvaluationCapture["canvas"];
   runDirectory: string;
-  questionImage?: string;
-  sampleAnswerImage?: string;
+  referenceImage?: string;
   studentScriptImage: string;
 };
 
@@ -46,9 +45,8 @@ export async function publicCapture(
   candidate: ScriptCandidate,
   capture: EvaluationCapture,
 ): Promise<PublicCapture> {
-  const [questionImage, sampleAnswerImage, studentScriptImage] = await Promise.all([
-    readFile(capture.questionPath).then(dataUrl),
-    readFile(capture.sampleAnswerPath).then(dataUrl),
+  const [referenceImage, studentScriptImage] = await Promise.all([
+    readFile(capture.referencePath).then(dataUrl),
     readFile(capture.studentScriptPath).then(dataUrl),
   ]);
 
@@ -59,8 +57,7 @@ export async function publicCapture(
     maxScore: capture.maxScore,
     canvas: capture.canvas,
     runDirectory: dirname(capture.studentScriptPath),
-    questionImage,
-    sampleAnswerImage,
+    referenceImage,
     studentScriptImage,
   };
 }

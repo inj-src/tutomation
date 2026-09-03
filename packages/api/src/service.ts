@@ -45,7 +45,6 @@ function categoryKey(candidate: ScriptCandidate): string {
 
 export class TeacherBrowserService {
   private readonly site = new TeacherSite()
-  private readonly categories = new Map<string, ScriptCategory>()
   private readonly captures = new Map<string, StoredCapture>()
   private readonly candidates = new Map<string, ScriptCandidate>()
   private readonly evaluators = new Map<string, CategoryEvaluator>()
@@ -71,18 +70,15 @@ export class TeacherBrowserService {
   async listCategories(): Promise<ScriptCategory[]> {
     return this.enqueue(async (site) => {
       const categories = await site.listCategories()
-      for (const category of categories) {
-        this.categories.set(category.examId, category)
-      }
       return categories
     })
   }
 
   async listCandidates(examId: string): Promise<ScriptCandidate[]> {
     return this.enqueue(async (site) => {
-      const category =
-        this.categories.get(examId) ??
-        (await site.listCategories()).find((value) => value.examId === examId)
+      const category = (await site.listCategories()).find(
+        (value) => value.examId === examId
+      )
       if (!category) {
         throw new ApiError(
           "This script category is no longer available. Reload the category list.",
@@ -90,8 +86,14 @@ export class TeacherBrowserService {
           "CATEGORY_NOT_FOUND"
         )
       }
-      this.categories.set(category.examId, category)
       const candidates = await site.listCandidates(category)
+      const activeIds = new Set(candidates.map(candidateId))
+      for (const [id, candidate] of this.candidates) {
+        if (candidate.examId === examId && !activeIds.has(id)) {
+          this.candidates.delete(id)
+          this.captures.delete(id)
+        }
+      }
       for (const candidate of candidates) {
         this.candidates.set(candidateId(candidate), candidate)
       }
@@ -184,9 +186,13 @@ export class TeacherBrowserService {
   }
 
   async capture(id: string): Promise<PublicCapture> {
+    const existing = this.captures.get(id)
+    if (existing?.publicCapture.status === "failed") this.captures.delete(id)
+    else if (existing) return existing.publicCapture
+
     return this.enqueue(async (site) => {
-      const existing = this.captures.get(id)
-      if (existing?.publicCapture.status === "failed") {
+      const current = this.captures.get(id)
+      if (current?.publicCapture.status === "failed") {
         this.captures.delete(id)
       }
       const stored = await this.captureOnSite(site, id)

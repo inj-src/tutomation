@@ -22,7 +22,15 @@ export function EvaluationCanvas({
   revision: number
   onApi?: (api: ExcalidrawImperativeAPI) => void
 }) {
-  const scene = useMemo(() => sceneFor(evaluation), [evaluation])
+  const scene = useMemo(
+    () =>
+      sceneFor(
+        evaluation,
+        capture.canvas.pixelWidth,
+        capture.canvas.pixelHeight
+      ),
+    [capture.canvas.pixelHeight, capture.canvas.pixelWidth, evaluation]
+  )
   const canvasHeight = capture.canvas.pixelHeight + extraBottomSpace
   const ratio = capture.canvas.pixelWidth / canvasHeight
   const { ref, style } = useContainedCanvasSize(ratio)

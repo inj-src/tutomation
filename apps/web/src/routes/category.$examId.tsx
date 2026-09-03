@@ -1,25 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { candidateEvaluationUrl } from "@repo/api/site-url"
-import {
-  ArrowLeft,
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-  Send,
-  Stars,
-} from "lucide-react"
+import { candidateEvaluationUrl } from "@repo/shared/site-url"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
-import { Button, buttonVariants } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -29,8 +14,10 @@ import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
 
 import { EvaluationCanvas } from "../components/evaluation-canvas"
 import { EvaluationControls } from "../components/evaluation-controls"
+import { EvaluationHeader } from "../components/evaluation-header"
 import { ReferencePanel } from "../components/reference-panel"
 import { ScriptList } from "../components/script-list"
+import { UnavailableScriptCard } from "../components/unavailable-script-card"
 import {
   evaluateCandidate,
   getCapture,
@@ -41,12 +28,16 @@ import {
 } from "../lib/api"
 
 export const Route = createFileRoute("/category/$examId")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    entry: typeof search.entry === "string" ? search.entry : undefined,
+  }),
   component: CategoryWorkspace,
 })
 
 function CategoryWorkspace() {
   const { examId } = Route.useParams()
-  const navigate = useNavigate()
+  const { entry: entryParam } = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
   const queryClient = useQueryClient()
   const entries = useQuery({
     queryKey: ["entries", examId],
@@ -54,7 +45,6 @@ function CategoryWorkspace() {
     refetchInterval: 15_000,
     refetchIntervalInBackground: false,
   })
-  const [selectedId, setSelectedId] = useState<string>()
   const [evaluations, setEvaluations] = useState<
     Record<string, EvaluationResult["evaluation"]>
   >({})
@@ -63,18 +53,52 @@ function CategoryWorkspace() {
   const [scriptListOpen, setScriptListOpen] = useState(true)
   const [editorApi, setEditorApi] = useState<ExcalidrawImperativeAPI>()
 
+  const entryList: Entry[] = entries.data ?? []
+  const selectedId = entryParam ?? entryList[0]?.id
+  const selected = entryList.find((entry) => entry.id === selectedId)
+  const selectedIsMissing = Boolean(entryParam && !selected)
+  const categoryIsGone =
+    entries.isError && /404|category|not found/i.test(entries.error.message)
+
   useEffect(() => {
-    if (!selectedId && entries.data?.[0]) {
-      setSelectedId(entries.data[0].id)
+    if (categoryIsGone) {
+      toast.info("Category is no longer available", {
+        description: "Returning to the available script queues.",
+      })
+      void navigate({ to: "/", replace: true })
+      return
     }
-  }, [entries.data, selectedId])
+    if (!entries.isSuccess) return
+    if (entryList.length === 0) {
+      toast.info("No pending scripts remain", {
+        description: "The category is no longer available.",
+      })
+      void navigate({ to: "/", replace: true })
+    } else if (!entryParam) {
+      void navigate({ search: { entry: entryList[0].id }, replace: true })
+    } else if (selectedIsMissing) {
+      void queryClient.invalidateQueries({
+        queryKey: ["capture", examId, entryParam],
+        exact: true,
+      })
+    }
+  }, [
+    entries.dataUpdatedAt,
+    categoryIsGone,
+    entries.error,
+    entries.isSuccess,
+    entryList,
+    entryParam,
+    examId,
+    navigate,
+    queryClient,
+    selectedIsMissing,
+  ])
 
   useEffect(() => setExtraBottomSpace(0), [selectedId])
 
-  const entryList: Entry[] = entries.data ?? []
-  const selected = entryList.find((entry) => entry.id === selectedId)
   const capture = useQuery({
-    queryKey: ["capture", selectedId],
+    queryKey: ["capture", examId, selectedId],
     queryFn: () => getCapture(selectedId!),
     enabled: Boolean(selectedId),
     refetchInterval: (query) =>
@@ -109,6 +133,17 @@ function CategoryWorkspace() {
   const busy =
     entries.isLoading || capture.isLoading || capture.data?.status !== "ready"
 
+  const reload = async (): Promise<void> => {
+    await entries.refetch()
+    if (selectedId) {
+      await queryClient.invalidateQueries({
+        queryKey: ["capture", examId, selectedId],
+        exact: true,
+      })
+    }
+    await queryClient.invalidateQueries({ queryKey: ["categories"] })
+  }
+
   return (
     <main className="flex min-h-svh min-w-0 flex-col">
       <SidebarProvider
@@ -122,7 +157,7 @@ function CategoryWorkspace() {
             selectedId={selectedId}
             isLoading={entries.isLoading}
             error={entries.isError ? entries.error : null}
-            onSelect={setSelectedId}
+            onSelect={(id) => void navigate({ search: { entry: id } })}
           />
           <SidebarInset className="min-h-0 min-w-0">
             <div className="flex min-h-0 flex-1">
@@ -136,115 +171,45 @@ function CategoryWorkspace() {
                   className="min-w-0"
                 >
                   <section className="flex h-full min-h-140 min-w-0 flex-col bg-muted/10 p-3 sm:p-5">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 pb-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Back to categories"
-                          title="Back to categories"
-                          onClick={() => void navigate({ to: "/" })}
-                        >
-                          <ArrowLeft />
-                        </Button>
-                        <p className="truncate text-sm font-semibold">
-                          {selected?.examSubject || `Exam ${examId}`}
-                        </p>
-                        {questionUrl ? (
-                          <a
-                            className={buttonVariants({
-                              variant: "ghost",
-                              size: "icon-sm",
-                            })}
-                            href={questionUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label="Open question in Teacher panel"
-                            title="Open question in Teacher panel"
-                          >
-                            <ExternalLink />
-                          </a>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            void entries.refetch()
-                            if (selectedId) {
-                              void queryClient.invalidateQueries({
-                                queryKey: ["capture", selectedId],
-                              })
-                            }
-                            void queryClient.invalidateQueries({
-                              queryKey: ["categories"],
-                            })
-                          }}
-                          disabled={entries.isFetching}
-                        >
-                          <RefreshCw
-                            className={
-                              entries.isFetching
-                                ? "size-4 animate-spin"
-                                : "size-4"
-                            }
-                          />
-                          <span className="hidden xl:inline">Reload</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => evaluate.mutate()}
-                          disabled={!selectedId || busy || evaluate.isPending}
-                          title="AI evaluate"
-                        >
-                          {evaluate.isPending ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Stars className="size-4" />
-                          )}
-                          <span className="hidden xl:inline">
-                            {evaluate.isPending ? "Evaluating…" : "AI evaluate"}
-                          </span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => submit.mutate()}
-                          disabled={
-                            !selectedId || !evaluation || submit.isPending
-                          }
-                          title="Submit"
-                        >
-                          {submit.isPending ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Send className="size-4" />
-                          )}
-                          <span className="hidden xl:inline">
-                            {submit.isPending ? "Saving…" : "Submit"}
-                          </span>
-                        </Button>
-                      </div>
-                    </div>
-                    {capture.isError || capture.data?.status === "failed" ? (
-                      <Card className="m-auto w-sm">
-                        <CardHeader>
-                          <CardTitle>Script unavailable</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm text-muted-foreground">
-                            {capture.data?.error ?? capture.error?.message}
-                          </p>
-                          <Button
-                            className="mt-4"
-                            variant="outline"
-                            onClick={() => void capture.refetch()}
-                          >
-                            Try again
-                          </Button>
-                        </CardContent>
-                      </Card>
+                    <EvaluationHeader
+                      examId={examId}
+                      examSubject={selected?.examSubject}
+                      questionUrl={questionUrl}
+                      reloadPending={entries.isFetching}
+                      evaluatePending={evaluate.isPending}
+                      evaluateDisabled={
+                        !selectedId || busy || evaluate.isPending
+                      }
+                      submitPending={submit.isPending}
+                      submitDisabled={
+                        !selectedId || !evaluation || submit.isPending
+                      }
+                      onBack={() => void navigate({ to: "/" })}
+                      onReload={() => void reload()}
+                      onEvaluate={() => evaluate.mutate()}
+                      onSubmit={() => submit.mutate()}
+                    />
+                    {selectedIsMissing ||
+                    capture.isError ||
+                    capture.data?.status === "failed" ? (
+                      <UnavailableScriptCard
+                        message={
+                          selectedIsMissing
+                            ? "This script is no longer available."
+                            : (capture.data?.error ??
+                              capture.error?.message ??
+                              "The script could not be loaded.")
+                        }
+                        onOpenTop={
+                          entryList[0]
+                            ? () =>
+                                void navigate({
+                                  search: { entry: entryList[0].id },
+                                })
+                            : undefined
+                        }
+                        onRetry={() => void capture.refetch()}
+                      />
                     ) : capture.data ? (
                       <div className="flex flex-1 flex-col items-center gap-4">
                         <EvaluationControls
@@ -277,7 +242,10 @@ function CategoryWorkspace() {
                   maxSize="50%"
                   className="min-w-0"
                 >
-                  <ReferencePanel capture={capture.data} />
+                  <ReferencePanel
+                    key={selectedId ?? "no-entry"}
+                    capture={capture.data}
+                  />
                 </ResizablePanel>
               </ResizablePanelGroup>
             </div>

@@ -13,26 +13,27 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "latest",
-    "@tanstack/react-query": "latest",
-    "@tanstack/react-router": "latest",
-    "@tanstack/router-plugin": "latest",
+    "@excalidraw/excalidraw": "0.18.1",
+    "@tanstack/react-query": "5.102.8",
+    "@tanstack/react-router": "1.170.32",
+    "@tanstack/router-plugin": "1.168.35",
     "@workspace/ui": "workspace:*",
     "@repo/api": "workspace:*",
-    "hono": "latest",
-    "lucide-react": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "sonner": "latest"
+    "@repo/shared": "workspace:*",
+    "hono": "4.13.5",
+    "lucide-react": "1.38.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sonner": "2.0.8"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "latest",
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
-    "tailwindcss": "latest",
-    "typescript": "latest",
-    "vite": "latest"
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.4.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
   }
 }

@@ -11,20 +11,21 @@
     "format:check": "oxfmt --check src"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "latest",
-    "@hono/zod-validator": "^0.9.0",
+    "@excalidraw/excalidraw": "0.18.1",
+    "@hono/zod-validator": "0.9.0",
+    "@repo/shared": "workspace:*",
     "ai": "^6.0.272",
-    "hono": "latest",
-    "openai-oauth-provider": "latest",
-    "playwright": "latest",
-    "roughjs": "latest",
-    "sharp": "latest",
-    "zod": "latest"
+    "hono": "4.13.5",
+    "openai-oauth-provider": "1.0.3",
+    "playwright": "1.62.1",
+    "roughjs": "4.6.6",
+    "sharp": "0.35.4",
+    "zod": "4.5.4"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "esbuild": "latest",
-    "typescript": "latest"
+    "@types/node": "26.4.0",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
   },
   "exports": {
     ".": "./src/index.ts",

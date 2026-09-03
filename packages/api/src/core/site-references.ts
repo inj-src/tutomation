@@ -13,27 +13,36 @@ async function waitForFonts(page: Page): Promise<void> {
 
 async function locateQuestion(page: Page): Promise<Locator> {
   const content = page
-    .locator(".questionResize:visible, .question-ans-text:visible")
+    .locator(".question-ans-text:visible")
+    .filter({ hasNot: page.locator("#SampleAns") })
     .first()
   await content.waitFor({ state: "visible", timeout: 30_000 })
+  const handle = await content.elementHandle()
+  if (!handle) {
+    throw new Error("The question content could not be located.")
+  }
   await page.waitForFunction(
-    () => {
-      const element = document.querySelector(
-        ".questionResize, .question-ans-text"
-      )
-      if (!element || !(element.textContent?.trim().length ?? 0)) return false
-      return [...element.querySelectorAll("img")].every(
-        (image) => image.complete
+    (element) => {
+      if (!(element instanceof HTMLElement) || !element.innerText.trim()) {
+        return false
+      }
+      const rect = element.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return false
+      return (
+        [...element.querySelectorAll("img")].every(
+          (image) => image.complete && image.naturalWidth > 0
+        ) &&
+        [...element.querySelectorAll("mjx-container")].every((math) => {
+          const mathRect = math.getBoundingClientRect()
+          return mathRect.width > 0 && mathRect.height > 0
+        })
       )
     },
-    undefined,
+    handle,
     { timeout: 30_000 }
   )
   await waitForFonts(page)
-  const marker = page.locator("strong, b", { hasText: "Question" }).first()
-  if ((await marker.count()) === 0) return content
-  const block = marker.locator("xpath=ancestor::th[1]")
-  return (await block.isVisible()) ? block : content
+  return content
 }
 
 async function locateSampleTrigger(page: Page): Promise<Locator> {

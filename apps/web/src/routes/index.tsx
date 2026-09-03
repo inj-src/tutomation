@@ -98,6 +98,7 @@ function CategoryPage() {
                     void navigate({
                       to: "/category/$examId",
                       params: { examId: category.examId },
+                      search: { entry: undefined },
                     })
                   }
                 >

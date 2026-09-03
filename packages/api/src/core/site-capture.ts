@@ -48,10 +48,7 @@ async function largestCanvas(page: Page): Promise<{
   })
 }
 
-export type ScriptCapture = Omit<
-  EvaluationCapture,
-  "referencePath"
-> & {
+export type ScriptCapture = Omit<EvaluationCapture, "referencePath"> & {
   outputDirectory: string
 }
 
@@ -62,24 +59,19 @@ export async function captureScript(
 ): Promise<ScriptCapture> {
   const responses: PlaywrightResponse[] = []
   let resolveResponse = (): void => undefined
-  let responseReady = Promise.resolve()
-  const resetResponses = (): void => {
-    responses.splice(0)
-    responseReady = new Promise<void>((resolve) => {
-      resolveResponse = resolve
-    })
-  }
+  const responseReady = new Promise<void>((resolve) => {
+    resolveResponse = resolve
+  })
   const collectResponse = (response: PlaywrightResponse) => {
     if (isStudentScriptImage(response)) {
       responses.push(response)
       resolveResponse()
     }
   }
-  resetResponses()
   page.on("response", collectResponse)
 
   try {
-    await startCandidate(page, candidate, resetResponses)
+    await startCandidate(page, candidate)
     if (responses.length === 0) {
       await Promise.race([responseReady, page.waitForTimeout(30_000)])
     }

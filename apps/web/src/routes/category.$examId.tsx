@@ -16,20 +16,18 @@ import { EvaluationCanvas } from "../components/evaluation-canvas"
 import { EvaluationControls } from "../components/evaluation-controls"
 import { EvaluationHeader } from "../components/evaluation-header"
 import { ReferencePanel } from "../components/reference-panel"
+import { RunningEvaluationCard } from "../components/running-evaluation-card"
 import { ScriptList } from "../components/script-list"
 import { UnavailableScriptCard } from "../components/unavailable-script-card"
+import { useCategoryEntries } from "../hooks/use-category-entries"
 import {
+  apiFailure,
   evaluateCandidate,
+  exitRunningEvaluation,
   getCapture,
-  getEntries,
   submitCandidate,
-  type Entry,
   type EvaluationResult,
 } from "../lib/api"
-
-function stableEntryId(id: string): string {
-  return id.split("~").slice(0, 6).join("~")
-}
 
 export const Route = createFileRoute("/category/$examId")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -43,12 +41,10 @@ function CategoryWorkspace() {
   const { entry: entryParam } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const queryClient = useQueryClient()
-  const entries = useQuery({
-    queryKey: ["entries", examId],
-    queryFn: () => getEntries(examId),
-    refetchInterval: 15_000,
-    refetchIntervalInBackground: false,
-  })
+  const { entries, entryList, selected, selectedId } = useCategoryEntries(
+    examId,
+    entryParam
+  )
   const [evaluations, setEvaluations] = useState<
     Record<string, EvaluationResult["evaluation"]>
   >({})
@@ -57,66 +53,21 @@ function CategoryWorkspace() {
   const [scriptListOpen, setScriptListOpen] = useState(true)
   const [editorApi, setEditorApi] = useState<ExcalidrawImperativeAPI>()
 
-  const entryList: Entry[] = entries.data ?? []
-  const selected = entryList.find(
-    (entry) =>
-      entry.id === entryParam ||
-      (entryParam !== undefined &&
-        stableEntryId(entry.id) === stableEntryId(entryParam))
-  )
-  const selectedId =
-    selected?.id ?? (!entryParam ? entryList[0]?.id : undefined)
-  const selectedIsMissing = Boolean(entryParam && !selected)
-  const categoryIsGone =
-    entries.isError && /404|category|not found/i.test(entries.error.message)
-
-  useEffect(() => {
-    if (categoryIsGone) {
-      toast.info("Category is no longer available", {
-        description: "Returning to the available script queues.",
-      })
-      void navigate({ to: "/", replace: true })
-      return
-    }
-    if (!entries.isSuccess) return
-    if (entryList.length === 0) {
-      toast.info("No pending scripts remain", {
-        description: "The category is no longer available.",
-      })
-      void navigate({ to: "/", replace: true })
-    } else if (!entryParam) {
-      void navigate({ search: { entry: entryList[0].id }, replace: true })
-    } else if (selected && entryParam !== selected.id) {
-      void navigate({ search: { entry: selected.id }, replace: true })
-    } else if (selectedIsMissing) {
-      void queryClient.invalidateQueries({
-        queryKey: ["capture", examId, entryParam],
-        exact: true,
-      })
-    }
-  }, [
-    entries.dataUpdatedAt,
-    categoryIsGone,
-    entries.error,
-    entries.isSuccess,
-    entryList,
-    entryParam,
-    examId,
-    navigate,
-    queryClient,
-    selected,
-    selectedIsMissing,
-  ])
-
   useEffect(() => setExtraBottomSpace(0), [selectedId])
 
   const capture = useQuery({
     queryKey: ["capture", examId, selectedId],
     queryFn: () => getCapture(selectedId!),
     enabled: Boolean(selectedId),
+    retry: false,
     refetchInterval: (query) =>
       query.state.data?.status === "capturing" ? 500 : false,
   })
+  const captureFailure = capture.isError ? apiFailure(capture.error) : undefined
+
+  useEffect(() => {
+    if (captureFailure?.code === "ENTRY_STALE") void entries.refetch()
+  }, [capture.errorUpdatedAt, captureFailure?.code])
   const questionUrl =
     capture.data?.evaluationUrl ??
     (selected ? candidateEvaluationUrl(selected) : undefined)
@@ -138,10 +89,29 @@ function CategoryWorkspace() {
   })
   const submit = useMutation({
     mutationFn: () => submitCandidate(selectedId!),
-    onSuccess: (result) =>
-      toast.success("Review saved", { description: result.message }),
+    onSuccess: (result) => {
+      toast.success("Review saved", { description: result.message })
+      if (!result.submitted) return
+      setEvaluations((current) => {
+        const next = { ...current }
+        delete next[selectedId!]
+        return next
+      })
+      void entries.refetch()
+      void queryClient.invalidateQueries({
+        queryKey: ["capture", examId, selectedId],
+        exact: true,
+      })
+    },
     onError: (error) =>
       toast.error("Could not save review", { description: error.message }),
+  })
+  const exit = useMutation({
+    mutationFn: exitRunningEvaluation,
+    onError: (error) =>
+      toast.error("Could not exit evaluation", {
+        description: apiFailure(error).message,
+      }),
   })
   const busy =
     entries.isLoading || capture.isLoading || capture.data?.status !== "ready"
@@ -155,6 +125,11 @@ function CategoryWorkspace() {
       })
     }
     await queryClient.invalidateQueries({ queryKey: ["categories"] })
+  }
+
+  const clearCapture = (): void => {
+    queryClient.removeQueries({ queryKey: ["capture"] })
+    void queryClient.invalidateQueries({ queryKey: ["entries"] })
   }
 
   return (
@@ -197,21 +172,45 @@ function CategoryWorkspace() {
                       submitDisabled={
                         !selectedId || !evaluation || submit.isPending
                       }
+                      exitPending={exit.isPending}
                       onBack={() => void navigate({ to: "/" })}
                       onReload={() => void reload()}
                       onEvaluate={() => evaluate.mutate()}
                       onSubmit={() => submit.mutate()}
+                      onExit={() =>
+                        exit.mutate(undefined, {
+                          onSuccess: () => {
+                            clearCapture()
+                            void navigate({ to: "/" })
+                          },
+                        })
+                      }
                     />
-                    {selectedIsMissing ||
-                    capture.isError ||
-                    capture.data?.status === "failed" ? (
+                    {captureFailure?.code === "RUNNING_EVALUATION" ? (
+                      <RunningEvaluationCard
+                        failure={captureFailure}
+                        opening={exit.isPending}
+                        onShowRunning={() => {
+                          const running = captureFailure.running
+                          if (!running) return
+                          void navigate({
+                            to: "/category/$examId",
+                            params: { examId: running.examId },
+                            search: { entry: running.id },
+                          })
+                        }}
+                        onOpenRequested={() =>
+                          exit.mutate(undefined, {
+                            onSuccess: () => void capture.refetch(),
+                          })
+                        }
+                      />
+                    ) : capture.isError || capture.data?.status === "failed" ? (
                       <UnavailableScriptCard
                         message={
-                          selectedIsMissing
-                            ? "This script is no longer available."
-                            : (capture.data?.error ??
-                              capture.error?.message ??
-                              "The script could not be loaded.")
+                          capture.data?.error ??
+                          captureFailure?.message ??
+                          "The script could not be loaded."
                         }
                         onOpenTop={
                           entryList[0]

@@ -14,6 +14,7 @@ export { renderEvaluation } from "./core/renderer.js"
 export * from "./core/types.js"
 export * from "./core/site.js"
 export { candidateEvaluationUrl } from "./core/site-url.js"
+export type { RunningEvaluation } from "./core/site-navigation.js"
 export type { TeacherCredentials } from "./core/auth.js"
 
 const loginSchema = z.object({
@@ -45,6 +46,7 @@ export function createApi(service: TeacherBrowserService) {
           error: {
             code: apiError.code,
             message: apiError.message,
+            details: apiError.details,
           },
         },
         apiError.status
@@ -65,6 +67,20 @@ export function createApi(service: TeacherBrowserService) {
       const body = c.req.valid("json")
       await service.login({ pin: body.pin, password: body.password })
       return c.json({ status: "ok", message: "Teacher credentials saved." })
+    })
+    .post("/api/evaluation/exit", async (c) => {
+      const released = await service.exitRunning()
+      logEvent("evaluation.exited", {
+        requestId: c.var.requestId,
+        released,
+      })
+      return c.json({
+        status: "ok",
+        released,
+        message: released
+          ? "The running evaluation was exited."
+          : "No evaluation was running.",
+      })
     })
     .get("/api/entries/:candidateId/capture", async (c) => {
       return c.json(await service.capture(c.req.param("candidateId")))

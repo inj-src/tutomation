@@ -1,14 +1,18 @@
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import type { TeacherCredentials } from "./core/auth.js"
 import { CategoryEvaluator } from "./core/evaluator.js"
+import {
+  RunningEvaluationConflict,
+  ScriptUnavailableError,
+} from "./core/site-navigation.js"
 import {
   type ScriptCandidate,
   type ScriptCategory,
   TeacherSite,
 } from "./core/site.js"
 import type { GeneratedEvaluation } from "./core/types.js"
-import type { TeacherCredentials } from "./core/auth.js"
 import {
   publicCapture,
   timestamp,
@@ -22,7 +26,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: 400 | 401 | 404 | 409 | 500 = 500,
-    readonly code = "INTERNAL_ERROR"
+    readonly code = "INTERNAL_ERROR",
+    readonly details?: unknown
   ) {
     super(message)
     this.name = "ApiError"
@@ -42,7 +47,7 @@ function categoryKey(candidate: ScriptCandidate): string {
 
 type CaptureRun = {
   candidate: ScriptCandidate
-  capture: Awaited<ReturnType<TeacherSite["finishCapture"]>>
+  capture: Awaited<ReturnType<TeacherSite["capture"]>>
   publicCapture: PublicCapture
 }
 
@@ -50,51 +55,30 @@ export class TeacherBrowserService {
   private readonly site = new TeacherSite()
   private readonly evaluators = new Map<string, CategoryEvaluator>()
   private readonly sessionsStarted = new Set<string>()
-  private queue: Promise<void> = Promise.resolve()
-
-  private enqueue<T>(work: (site: TeacherSite) => Promise<T>): Promise<T> {
-    const result = this.queue.then(async () => {
-      await this.site.open()
-      return work(this.site)
-    })
-    this.queue = result.then(
-      () => undefined,
-      () => undefined
-    )
-    return result
-  }
 
   async login(credentials: TeacherCredentials): Promise<void> {
-    return this.enqueue((site) => site.login(credentials))
+    await this.site.login(credentials)
   }
 
   async listCategories(): Promise<ScriptCategory[]> {
-    return this.enqueue(async (site) => {
-      const categories = await site.listCategories()
-      return categories
-    })
+    return this.site.listCategories()
   }
 
   async listCandidates(examId: string): Promise<ScriptCandidate[]> {
-    return this.enqueue(async (site) => {
-      const category = (await site.listCategories()).find(
-        (value) => value.examId === examId
+    const category = (await this.site.listCategories()).find(
+      (value) => value.examId === examId
+    )
+    if (!category) {
+      throw new ApiError(
+        "This script category is no longer available. Reload the category list.",
+        404,
+        "CATEGORY_NOT_FOUND"
       )
-      if (!category) {
-        throw new ApiError(
-          "This script category is no longer available. Reload the category list.",
-          404,
-          "CATEGORY_NOT_FOUND"
-        )
-      }
-      return site.listCandidates(category)
-    })
+    }
+    return this.site.listCandidates(category)
   }
 
-  private async resolveCandidate(
-    site: TeacherSite,
-    id: string
-  ): Promise<ScriptCandidate> {
+  private async resolveCandidate(id: string): Promise<ScriptCandidate> {
     const parts = id.split("~")
     const examId = parts[0]
     if (!examId || (parts.length !== 6 && parts.length !== 7)) {
@@ -105,7 +89,7 @@ export class TeacherBrowserService {
       )
     }
 
-    const categories = await site.listCategories()
+    const categories = await this.site.listCategories()
     const category = categories.find((value) => value.examId === examId)
     if (!category) {
       throw new ApiError(
@@ -115,7 +99,7 @@ export class TeacherBrowserService {
       )
     }
 
-    const candidate = (await site.listCandidates(category)).find((value) =>
+    const candidate = (await this.site.listCandidates(category)).find((value) =>
       [
         value.examId,
         value.courseId,
@@ -127,7 +111,7 @@ export class TeacherBrowserService {
     )
     if (!candidate) {
       throw new ApiError(
-        "This script was already evaluated or disappeared. Reload the entries and choose another script.",
+        "This entry has no pending student scripts.",
         409,
         "ENTRY_STALE"
       )
@@ -135,17 +119,13 @@ export class TeacherBrowserService {
     return candidate
   }
 
-  private async captureOnSite(
-    site: TeacherSite,
-    id: string
-  ): Promise<CaptureRun> {
-    const candidate = await this.resolveCandidate(site, id)
+  private async captureOnce(id: string): Promise<CaptureRun> {
+    const candidate = await this.resolveCandidate(id)
     const outputDirectory = join(
       runsDirectory,
       `${timestamp()}-exam-${candidate.examId}-script-${candidate.pendingQuestion}`
     )
-    const script = await site.captureScript(candidate, outputDirectory)
-    const capture = await site.finishCapture(candidate, script)
+    const capture = await this.site.capture(candidate, outputDirectory)
     return {
       candidate,
       capture,
@@ -153,10 +133,28 @@ export class TeacherBrowserService {
     }
   }
 
+  private async captureOnSite(id: string): Promise<CaptureRun> {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await this.captureOnce(id)
+      } catch (error) {
+        if (error instanceof ScriptUnavailableError && attempt === 0) continue
+        if (error instanceof ScriptUnavailableError) {
+          throw new ApiError(error.message, 409, "SCRIPT_UNAVAILABLE")
+        }
+        if (error instanceof RunningEvaluationConflict) {
+          throw new ApiError(error.message, 409, "RUNNING_EVALUATION", {
+            running: error.running,
+          })
+        }
+        throw error
+      }
+    }
+    throw new Error("Capture retry ended unexpectedly.")
+  }
+
   async capture(id: string): Promise<PublicCapture> {
-    return this.enqueue(
-      async (site) => (await this.captureOnSite(site, id)).publicCapture
-    )
+    return (await this.captureOnSite(id)).publicCapture
   }
 
   async evaluate(
@@ -167,36 +165,37 @@ export class TeacherBrowserService {
     capture: PublicCapture
     evaluation: GeneratedEvaluation
   }> {
-    return this.enqueue(async (site) => {
-      const run = await this.captureOnSite(site, id)
-      const key = categoryKey(run.candidate)
-      const evaluator = this.evaluators.get(key) ?? new CategoryEvaluator(key)
-      this.evaluators.set(key, evaluator)
+    const run = await this.captureOnSite(id)
+    const key = categoryKey(run.candidate)
+    const evaluator = this.evaluators.get(key) ?? new CategoryEvaluator(key)
+    this.evaluators.set(key, evaluator)
 
-      const evaluation = this.sessionsStarted.has(key)
-        ? await evaluator.evaluateNext({
-            studentScriptPath: run.capture.studentScriptPath,
-            maxScore: run.capture.maxScore,
-            scriptId: id,
-            retryNote,
-          })
-        : await evaluator.evaluateFirst({
-            referencePath: run.capture.referencePath,
-            studentScriptPath: run.capture.studentScriptPath,
-            maxScore: run.capture.maxScore,
-          })
-      this.sessionsStarted.add(key)
+    const evaluation = this.sessionsStarted.has(key)
+      ? await evaluator.evaluateNext({
+          studentScriptPath: run.capture.studentScriptPath,
+          maxScore: run.capture.maxScore,
+          scriptId: id,
+          retryNote,
+        })
+      : await evaluator.evaluateFirst({
+          referencePath: run.capture.referencePath,
+          studentScriptPath: run.capture.studentScriptPath,
+          maxScore: run.capture.maxScore,
+        })
+    this.sessionsStarted.add(key)
 
-      return {
-        candidate: run.candidate,
-        capture: run.publicCapture,
-        evaluation,
-      }
-    })
+    return {
+      candidate: run.candidate,
+      capture: run.publicCapture,
+      evaluation,
+    }
+  }
+
+  async exitRunning(): Promise<boolean> {
+    return this.site.exitRunning()
   }
 
   async close(): Promise<void> {
-    await this.queue
     await this.site.close()
   }
 }

@@ -18,11 +18,10 @@ import {
 import {
   captureScript as captureScriptOnPage,
   finalizeCapture,
-  type ScriptCapture,
 } from "./site-capture.js"
-import { captureReferences as captureReferencesOnPage } from "./site-references.js"
 import { SiteListing } from "./site-listing.js"
-import { evaluationPagePattern } from "./site-navigation.js"
+import { exitRunningEvaluation } from "./site-navigation.js"
+import { captureReferences as captureReferencesOnPage } from "./site-references.js"
 
 export type ScriptCategory = {
   index: number
@@ -70,10 +69,6 @@ export type EvaluationCapture = {
 const baseUrl = "https://teacher.udvash-unmesh.com"
 const indexUrl = `${baseUrl}/Teacher/ScriptEvaluation/Index`
 
-function urlsEqual(left: string, right: string): boolean {
-  return new URL(left).toString() === new URL(right).toString()
-}
-
 export function candidateId(candidate: ScriptCandidate): string {
   return [
     candidate.examId,
@@ -88,139 +83,128 @@ export function candidateId(candidate: ScriptCandidate): string {
 export class TeacherSite {
   private browser: Browser | undefined
   private context: BrowserContext | undefined
-  private page: Page | undefined
+  private opening: Promise<void> | undefined
+  private authenticating: Promise<void> | undefined
   private readonly listing = new SiteListing()
 
   constructor(private readonly terminal?: ReadlineInterface) {}
 
-  async open(): Promise<void> {
-    if (this.page && this.context && this.browser) {
-      return
-    }
-
+  private async launch(): Promise<void> {
     const browser = await chromium.launch({
       headless: process.env.HEADLESS !== "false",
     })
-    this.browser = browser
-    browser.on("disconnected", () => {
-      if (this.browser !== browser) return
-      this.browser = this.context = this.page = undefined
-    })
-    this.context = await browser.newContext({
-      storageState: (await hasSavedAuthState()) ? authFile : undefined,
-      viewport: { width: 1600, height: 1000 },
-      deviceScaleFactor: 1,
-    })
-    this.page = await this.context.newPage()
-  }
-
-  async login(credentials: TeacherCredentials): Promise<void> {
-    await this.open()
-    const page = this.currentPage()
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60_000 })
-    if (await isLoginPage(page)) {
-      await loginWithCredentials(page, credentials, this.currentContext())
+    try {
+      const context = await browser.newContext({
+        storageState: (await hasSavedAuthState()) ? authFile : undefined,
+        viewport: { width: 1600, height: 1000 },
+        deviceScaleFactor: 1,
+      })
+      this.browser = browser
+      this.context = context
+      browser.on("disconnected", () => {
+        if (this.browser !== browser) return
+        this.browser = this.context = undefined
+      })
+    } catch (error) {
+      await browser.close().catch(() => undefined)
+      throw error
     }
   }
 
-  private currentPage(): Page {
-    if (!this.page) {
-      throw new Error("The Playwright browser is not open.")
-    }
-    return this.page
+  async open(): Promise<void> {
+    if (this.browser?.isConnected() && this.context) return
+    this.opening ??= this.launch().finally(() => {
+      this.opening = undefined
+    })
+    await this.opening
   }
 
   private currentContext(): BrowserContext {
-    if (!this.context) {
-      throw new Error("The Playwright context is not open.")
-    }
+    if (!this.context) throw new Error("The Playwright context is not open.")
     return this.context
   }
 
-  private async navigate(
-    url: string,
-    page = this.currentPage()
-  ): Promise<Page> {
-    await page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
+  private async navigate(page: Page, url: string): Promise<Page> {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 })
+    if (!(await isLoginPage(page))) return page
+
+    this.authenticating ??= ensureTeacherAuthenticated(
+      page,
+      this.terminal,
+      this.currentContext()
+    ).finally(() => {
+      this.authenticating = undefined
     })
-
+    await this.authenticating
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 })
     if (await isLoginPage(page)) {
-      await ensureTeacherAuthenticated(
-        page,
-        this.terminal,
-        this.currentContext()
-      )
-      await page.goto(url, {
-        waitUntil: "domcontentloaded",
-        timeout: 60_000,
-      })
-
-      if (await isLoginPage(page)) {
-        throw new Error("Teacher login did not complete successfully.")
-      }
+      throw new Error("Teacher login did not complete successfully.")
     }
-
     return page
   }
 
-  private async withListingPage<T>(
-    url: string,
-    work: (page: Page) => Promise<T>
-  ): Promise<T> {
-    const current = this.currentPage()
-    const isolated = evaluationPagePattern.test(current.url())
-    const page = isolated ? await this.currentContext().newPage() : current
+  private async withPage<T>(work: (page: Page) => Promise<T>): Promise<T> {
+    await this.open()
+    const page = await this.currentContext().newPage()
     try {
-      return await work(await this.navigate(url, page))
+      return await work(page)
     } finally {
-      if (isolated) await page.close()
+      await page.close().catch(() => undefined)
     }
   }
 
+  async login(credentials: TeacherCredentials): Promise<void> {
+    await this.withPage(async (page) => {
+      await page.goto(baseUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      })
+      if (await isLoginPage(page)) {
+        await loginWithCredentials(page, credentials, this.currentContext())
+      }
+    })
+  }
+
   async listCategories(): Promise<ScriptCategory[]> {
-    return this.withListingPage(indexUrl, (page) =>
-      this.listing.categories(page)
+    return this.withPage(async (page) =>
+      this.listing.categories(await this.navigate(page, indexUrl))
     )
   }
 
   async listCandidates(category: ScriptCategory): Promise<ScriptCandidate[]> {
-    return this.withListingPage(category.detailsUrl, (page) =>
-      this.listing.candidates(page, category)
+    return this.withPage(async (page) =>
+      this.listing.candidates(
+        await this.navigate(page, category.detailsUrl),
+        category
+      )
     )
   }
 
-  async captureScript(
+  async capture(
     candidate: ScriptCandidate,
     outputDirectory: string
-  ): Promise<ScriptCapture> {
-    const currentPage = this.currentPage()
-    const page =
-      evaluationPagePattern.test(currentPage.url()) ||
-      urlsEqual(currentPage.url(), candidate.detailsUrl)
-        ? currentPage
-        : await this.navigate(candidate.detailsUrl)
-    return captureScriptOnPage(page, candidate, outputDirectory)
+  ): Promise<EvaluationCapture> {
+    return this.withPage(async (page) => {
+      await this.navigate(page, candidate.detailsUrl)
+      const script = await captureScriptOnPage(page, candidate, outputDirectory)
+      const references = await captureReferencesOnPage(page, outputDirectory)
+      return finalizeCapture(page, candidate, script, references)
+    })
   }
 
-  async finishCapture(
-    candidate: ScriptCandidate,
-    script: ScriptCapture
-  ): Promise<EvaluationCapture> {
-    const page = this.currentPage()
-    const references = await captureReferencesOnPage(
-      page,
-      script.outputDirectory
-    )
-    return finalizeCapture(page, candidate, script, references)
+  async exitRunning(): Promise<boolean> {
+    return this.withPage(async (page) => {
+      await this.navigate(page, indexUrl)
+      return exitRunningEvaluation(page)
+    })
   }
 
   async close(): Promise<void> {
-    await this.context?.close()
-    await this.browser?.close()
-    this.context = undefined
-    this.browser = undefined
-    this.page = undefined
+    await this.opening?.catch(() => undefined)
+    const context = this.context
+    const browser = this.browser
+    this.context = this.browser = undefined
+    await context?.close().catch(() => undefined)
+    await browser?.close().catch(() => undefined)
   }
 }

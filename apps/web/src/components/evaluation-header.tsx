@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ExternalLink,
   Loader2,
+  LogOut,
   RefreshCw,
   Send,
   Stars,
@@ -18,10 +19,12 @@ export function EvaluationHeader({
   evaluateDisabled,
   submitPending,
   submitDisabled,
+  exitPending,
   onBack,
   onReload,
   onEvaluate,
   onSubmit,
+  onExit,
 }: {
   examId: string
   examSubject?: string
@@ -31,10 +34,12 @@ export function EvaluationHeader({
   evaluateDisabled: boolean
   submitPending: boolean
   submitDisabled: boolean
+  exitPending: boolean
   onBack: () => void
   onReload: () => void
   onEvaluate: () => void
   onSubmit: () => void
+  onExit: () => void
 }) {
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3 pb-3">
@@ -46,7 +51,7 @@ export function EvaluationHeader({
           title="Back to categories"
           onClick={onBack}
         >
-          <ArrowLeft />
+          <ArrowLeft data-icon="icon-only" />
         </Button>
         <p className="truncate text-sm font-semibold">
           {examSubject || `Exam ${examId}`}
@@ -60,7 +65,7 @@ export function EvaluationHeader({
             aria-label="Open question in Teacher panel"
             title="Open question in Teacher panel"
           >
-            <ExternalLink />
+            <ExternalLink data-icon="icon-only" />
           </a>
         ) : null}
       </div>
@@ -72,7 +77,8 @@ export function EvaluationHeader({
           disabled={reloadPending}
         >
           <RefreshCw
-            className={reloadPending ? "size-4 animate-spin" : "size-4"}
+            data-icon="inline-start"
+            className={reloadPending ? "animate-spin" : undefined}
           />
           <span className="hidden xl:inline">Reload</span>
         </Button>
@@ -83,9 +89,9 @@ export function EvaluationHeader({
           title="AI evaluate"
         >
           {evaluatePending ? (
-            <Loader2 className="size-4 animate-spin" />
+            <Loader2 data-icon="inline-start" className="animate-spin" />
           ) : (
-            <Stars className="size-4" />
+            <Stars data-icon="inline-start" />
           )}
           <span className="hidden xl:inline">
             {evaluatePending ? "Evaluating…" : "AI evaluate"}
@@ -99,12 +105,28 @@ export function EvaluationHeader({
           title="Submit"
         >
           {submitPending ? (
-            <Loader2 className="size-4 animate-spin" />
+            <Loader2 data-icon="inline-start" className="animate-spin" />
           ) : (
-            <Send className="size-4" />
+            <Send data-icon="inline-start" />
           )}
           <span className="hidden xl:inline">
             {submitPending ? "Saving…" : "Submit"}
+          </span>
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onExit}
+          disabled={exitPending}
+          title="Exit running evaluation"
+        >
+          {exitPending ? (
+            <Loader2 data-icon="inline-start" className="animate-spin" />
+          ) : (
+            <LogOut data-icon="inline-start" />
+          )}
+          <span className="hidden xl:inline">
+            {exitPending ? "Exiting…" : "Exit"}
           </span>
         </Button>
       </div>

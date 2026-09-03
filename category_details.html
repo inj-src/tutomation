@@ -1,0 +1,1570 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="description" content="" />
+    <meta
+      name="keywords"
+      content="Udvash,Unmesh,Online Education,Online Exam,Online Class,Online Admission"
+    />
+    <meta name="author" content="Udvash-Unmesh Shikkha Poribar" />
+    <meta name="application-name" content="Udvash-Unmesh Online Portal" />
+
+    <title>
+      New Script Evaluation DashBoard - Teacher Portal Udvash-Unmesh
+      V-line-teacher-portal-6c56bd579d-qbgtt.229.2
+    </title>
+
+    <!-- ----------------------------------------------------------------
+    Fonts load from google
+----------------------------------------------------------------- -->
+
+    <link rel="icon" href="/Content/UmsTheme/assets/images/favicon.png" sizes="32x32" />
+    <link rel="icon" href="/Content/UmsTheme/assets/images/favicon.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/Content/UmsTheme/assets/images/favicon.png" />
+    <meta name="msapplication-TileImage" content="/Content/UmsTheme/assets/images/favicon.png" />
+
+    <!-- ----------------------------------------------------------------
+    Fonts load from google
+----------------------------------------------------------------- -->
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,300&family=Roboto:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- ----------------------------------------------------------------
+    Page Stylesheets
+----------------------------------------------------------------- -->
+    <!-- Bootstrap -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="/Content/UmsTheme/assets/lib/bootstrap/bootstrap.min.css"
+    />
+
+    <!-- Fontawesome -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="/Content/UmsTheme/assets/lib/fontawesome/css/all.min.css"
+    />
+
+    <!-- Skin -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="/Content/UmsTheme/assets/css/skin-udvash.css?v=136.22646"
+    />
+
+    <!-- Style -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="/Content/UmsTheme/assets/css/style.css?v=136.22646"
+    />
+
+    <!-- Custom -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="/Content/UmsTheme/assets/css/custom.css?v=136.22646"
+    />
+
+    <!-- jQuery -->
+    <script type="text/javascript" src="/Content/UmsTheme/assets/js/jquery.min.js"></script>
+
+    <script type="text/javascript">
+      const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+      const isiOS =
+        /iPhone|iPad|iPod/i.test(userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const isAndroid = /Android/i.test(userAgent);
+      const isDesktop = !isiOS && !isAndroid;
+      //This block execute after every ajax call
+      //If the ajax call return login error then this
+      //function redirect the user to login page.
+      $(document).ajaxComplete(function (xhr, status) {
+        if (status.getResponseHeader("X-Responded-JSON") != null) {
+          var obj = jQuery.parseJSON(status.getResponseHeader("X-Responded-JSON"));
+          if (obj.status == 401) {
+            //window.location.assign(obj.headers['location']);
+            window.location.assign(
+              obj.headers["location"].substr(0, obj.headers["location"].indexOf("?")),
+            );
+          }
+        }
+      });
+
+      function mobileCheck(mobileNumber) {
+        mobileNumber = mobileNumber.replace(/\W+/g, "");
+        var chkVal = mobileNumber.match(/^(?:\+?88)?0?1[13-9]\d{8}$/);
+        if (chkVal != null) {
+          if (mobileNumber.length == 11) {
+            chkVal = "88" + chkVal;
+          } else if (mobileNumber.length == 10) {
+            chkVal = "880" + chkVal;
+          }
+          var chkVal = mobileNumber.match(/^(?:\+?88)?01[13-9]\d{8}$/);
+          if (chkVal != null) {
+            if (mobileNumber.length == 11) {
+              chkVal = "88" + chkVal;
+            } else if (mobileNumber.length == 10) {
+              chkVal = "880" + chkVal;
+            }
+          }
+          //alert(chkVal);
+        }
+        return chkVal;
+      }
+
+      function nickNameCheck(nickName) {
+        var chkVal = nickName.match(/^[a-zA-Z .-`]$/);
+        return chkVal;
+      }
+
+      //This function is used for remove other char without numeric for text field
+      function isNumber(evt) {
+        evt = evt ? evt : window.event;
+        var charCode = evt.which ? evt.which : evt.keyCode;
+        if (charCode > 31 && (charCode < 48 || charCode > 57)) {
+          return false;
+        }
+        return true;
+      }
+
+      if (!String.prototype.trim) {
+        String.prototype.trim = function () {
+          return this.replace(/^\s+|\s+$/g, "");
+        };
+      }
+
+      function showErrorMessageBelowCtrl(ctrlId, message, show) {
+        var divHtml = '<div style="color:red;" id="' + ctrlId + '_err_div" >' + message + "</div>";
+
+        if (show == true) {
+          $("#" + ctrlId).addClass("highlight");
+          $("#" + ctrlId).after(divHtml);
+        } else {
+          $("#" + ctrlId).removeClass("highlight");
+          $("#" + ctrlId + "_err_div").remove();
+        }
+      }
+
+      function validateTextField(controlId, errorMessage) {
+        $(document).on("input propertychange", "#" + controlId, function (event) {
+          var value = $("#" + controlId)
+            .val()
+            .trim();
+
+          if (value.length == 0) {
+            showErrorMessageBelowCtrl(controlId, "", false);
+            showErrorMessageBelowCtrl(controlId, errorMessage, true);
+            return false;
+          } else {
+            showErrorMessageBelowCtrl(controlId, "", false);
+          }
+        });
+      }
+
+      function validateDropDownField(controlId, targetId, errorMessage) {
+        $(document).on("change", "#" + controlId, function (event) {
+          var val = $("#" + targetId).val();
+          if (val.length == 0) {
+            //showErrorMessageBelowCtrl(controlId, "", false);
+            showErrorMessageBelowCtrl(controlId, errorMessage, true);
+          } else {
+            showErrorMessageBelowCtrl(controlId, "", false);
+          }
+        });
+      }
+
+      function validateDropDownField(controlId, errorMessage) {
+        $(document).on("change", "#" + controlId, function (event) {
+          var val = $("#" + controlId).val();
+          if (val.length == 0) {
+            showErrorMessageBelowCtrl(controlId, "", false);
+            showErrorMessageBelowCtrl(controlId, errorMessage, true);
+          } else {
+            showErrorMessageBelowCtrl(controlId, "", false);
+          }
+        });
+      }
+
+      function validateListField(controlId, errorMessage) {
+        $(document).on("change", "#" + controlId, function (event) {
+          var val = $("#" + controlId).val();
+          if (val == null || val.length == 0) {
+            showErrorMessageBelowCtrl(controlId, "", false);
+            showErrorMessageBelowCtrl(controlId, errorMessage, true);
+          } else {
+            showErrorMessageBelowCtrl(controlId, "", false);
+          }
+        });
+      }
+
+      function scrollToElement(selector) {
+        var s = $(selector);
+        if (s != undefined) $(document.body).scrollTop($(selector).offset().top - 120);
+      }
+
+      $(document).ready(function () {
+        $("select").change(function () {
+          if ($(this).val() != "") {
+            $(this).parent().find(".field-validation-error-count").remove();
+            $(this).next("span").empty();
+          } else {
+            //$(this).parent().find(".field-validation-error-count").remove();
+            $(this).parent().remove("span");
+            $(this)
+              .parent()
+              .append("<span class='text-danger field-validation-error' style='color:red'></span>");
+          }
+        });
+
+        $(document).on("input propertychange", ".numbersOnly", function (event) {
+          var valStr = $(this).val();
+          var id = $(this).attr("id");
+          var val = parseInt(valStr);
+          showErrorMessageBelowCtrl(id, "", false);
+          if (isNaN(val)) {
+            $(this).val("");
+          } else if (val < 0) {
+            $(this).val("");
+            showErrorMessageBelowCtrl(id, "Please enter valid amount", true);
+          } else {
+            $(this).val(val);
+          }
+        });
+      });
+    </script>
+    <script>
+      //Disable Inspect Element
+      document.onkeydown = function (e) {
+        if (event.keyCode == 123) {
+          return false;
+        }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == "I".charCodeAt(0)) {
+          return false;
+        }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == "C".charCodeAt(0)) {
+          return false;
+        }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == "J".charCodeAt(0)) {
+          return false;
+        }
+        if (e.ctrlKey && e.keyCode == "U".charCodeAt(0)) {
+          return false;
+        }
+      };
+
+      $(document).bind("contextmenu", function (e) {
+        e.preventDefault();
+      });
+      $(document).keydown(function (e) {
+        if (e.which === 123) {
+          return false;
+        }
+      });
+    </script>
+
+    <style>
+      /* Chrome, Safari, Edge, Opera */
+      input::-webkit-outer-spin-button,
+      input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      /* Firefox */
+      input[type="number"] {
+        -moz-appearance: textfield;
+      }
+    </style>
+  </head>
+  <body class="uu-routine-page" data-project-root="">
+    <a class="scroll-to-top" href="javascript:void(0)">
+      <i class="fas fa-chevron-circle-up"></i>
+    </a>
+    <style>
+      .uu-has-sub-mobile-menu {
+        visibility: hidden;
+      }
+
+      li.for-mobile-view {
+        display: none !important;
+      }
+
+      .uu-header-wrapper .notification a span i {
+        font-size: 24px;
+        padding: 9px;
+        border-radius: 50%;
+        min-width: 41px;
+        margin: 0px 5px;
+        color: #fff;
+        background-color: #532356;
+      }
+
+      .uu-header-wrapper .notification a .badge {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: red;
+        color: #fff;
+        font-size: 14px;
+        right: -3px;
+        top: -21px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      @media (max-width: 768px) {
+        .for-mobile-menu {
+          display: none !important;
+        }
+
+        li.for-mobile-view {
+          display: block !important;
+        }
+
+        .uu-has-sub-mobile-menu {
+          visibility: visible;
+        }
+
+        ul.uu-main-menu ul.uu-dropdown-menu li a {
+          white-space: pre-wrap;
+        }
+      }
+
+      @media only screen and (max-width: 992px) and (min-width: 768px) {
+        div.uu-header-wrapper {
+          padding-block: 10px;
+          padding-right: 10px;
+        }
+      }
+    </style>
+    <div class="uu-desible-body"></div>
+
+    <header id="topHeader" data-pin="23228" data-name="Shahi Raja Lashkor" data-app-id="">
+      <div class="uu-header-wrapper">
+        <div class="container">
+          <div class="align-items-center row">
+            <div class="col-md-10 col-6 col-lg-2 logo-wrapper d-middle">
+              <div id="wrapper" class="">
+                <div id="iconId" class="circle icon">
+                  <span class="top line"></span>
+                  <span class="line middle"></span>
+                  <span class="bottom line"></span>
+                </div>
+              </div>
+
+              <div class="logo">
+                <a href="/">
+                  <img class="uu-header-logo" src="/Content/Image/UdvashUnmeshOnlineCare.png" />
+                </a>
+              </div>
+            </div>
+            <!-- end col -->
+
+            <div class="text-right col-md-9 col-6 uu-mobile-menu">
+              <ul class="uu-main-menu uuu-new-menu">
+                <li>
+                  <a href="/Teacher/Routine">Routine</a>
+                </li>
+                <li>
+                  <a href="/Teacher/ClassContent">Class Content</a>
+                </li>
+                <li class="uu-has-sub-menu">
+                  <a href="#"
+                    >Script Evaluation <span><i class="fas fa-chevron-down"></i></span
+                  ></a>
+                  <ul class="uu-dropdown-menu">
+                    <li>
+                      <a href="/Teacher/ScriptEvaluation/Index">Evaluation</a>
+                    </li>
+                    <li>
+                      <a href="/Teacher/ScriptEvaluation/TeacherEvaluationReview">Review</a>
+                    </li>
+                  </ul>
+                </li>
+                <li class="uu-has-sub-menu">
+                  <a href="#"
+                    >My Payment <span><i class="fas fa-chevron-down"></i></span
+                  ></a>
+                  <ul class="uu-dropdown-menu">
+                    <li><a href="/Teacher/MyPayment/Index">Due Amount</a></li>
+                    <li>
+                      <a href="/Teacher/Report/TeacherPaymentSummaryReport">Summary Report</a>
+                    </li>
+                    <li><a href="/Teacher/Report/Index">Class Payment Report</a></li>
+                    <li>
+                      <a href="/Teacher/Report/EvaluationPayment">Evaluation Payment Report</a>
+                    </li>
+                    <li><a href="/Teacher/Report/MaterialsPayment">Materials Payment Report</a></li>
+                    <li><a href="/Teacher/QnA2/TeacherPaymentReport">Q&A Payment</a></li>
+                  </ul>
+                </li>
+                <li><a href="/Teacher/Report/ClassPerformance">Class Performance</a></li>
+                <li class="uu-has-sub-menu">
+                  <a href="#"
+                    >Question & Answer<span><i class="fas fa-chevron-down"></i></span
+                  ></a>
+                  <ul class="uu-dropdown-menu">
+                    <li>
+                      <a href="/Teacher/QnA2/Index">Pending Question</a>
+                    </li>
+                    <li>
+                      <a href="/Teacher/QnA2/ManageEditAnswer">Edit Answer</a>
+                    </li>
+                  </ul>
+                </li>
+                <li><a href="/Teacher/Community/Messages">Community</a></li>
+              </ul>
+            </div>
+            <!-- end col -->
+
+            <div class="uu-mobile-right-menu px-1 px-lg-0 text-right col-md-2 col-6 col-lg-1">
+              <ul class="uu-main-menu">
+                <div class="uu-last-element">
+                  <li class="uu-profile">
+                    <a href="javascript:void(0)">
+                      <img
+                        class="uu-profile-pic"
+                        src="/Content/UmsTheme/assets/images/profile-pic.png"
+                      />
+                    </a>
+                    <ul class="uu-dropdown">
+                      <div class="uu-profile-box">
+                        <div class="uu-profile-box-header">
+                          <img src="/Content/UmsTheme/assets/images/profile-pic.png" />
+                        </div>
+                        <div class="uu-profile-box-body">
+                          <h3 class="uu-profile-name">Shahi Raja Lashkor</h3>
+                          <h4 class="uu-profile-email">23228</h4>
+                          <ul class="uu-profile-action">
+                            <li>
+                              <a
+                                class="uu-profile-edit"
+                                href="/Teacher/Profile/ChangePassword"
+                                data-title="Change Password"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -1 28 28">
+                                  <defs>
+                                    <style>
+                                      .cls-1 {
+                                        fill: #8f8f8f;
+                                      }
+                                    </style>
+                                  </defs>
+                                  <g id="Layer_2" data-name="Layer 2">
+                                    <g id="Layer_1-2" data-name="Layer 1">
+                                      <path
+                                        class="cls-1"
+                                        d="M7.39,18.9,18.72,7.61,15.13,4,3.76,15.35ZM2.62,16.52C1.75,18.59.89,20.64,0,22.74l6.28-2.65Z"
+                                      />
+                                      <path
+                                        class="cls-1"
+                                        d="M22.74,2.87a3.35,3.35,0,0,1-1.21,2c-.48.46-.93.94-1.37,1.37L16.47,2.58l.83-.82c.38-.38.75-.78,1.16-1.12A2.58,2.58,0,0,1,22.7,2.13c0,.06,0,.11,0,.17Z"
+                                      />
+                                      <path
+                                        class="cls-1"
+                                        d="M7.39,18.9,3.76,15.35,15.13,4l3.59,3.58Z"
+                                      />
+                                      <path
+                                        class="cls-1"
+                                        d="M2.62,16.52l3.66,3.57L0,22.74C.89,20.64,1.75,18.59,2.62,16.52Z"
+                                      />
+                                    </g>
+                                  </g>
+                                </svg>
+                              </a>
+                            </li>
+                            <li>
+                              <a
+                                class="uu-profile-view"
+                                href="/Teacher/Profile"
+                                data-title="View Profile"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24.52 19">
+                                  <defs>
+                                    <style>
+                                      .cls-1 {
+                                        fill: #8f8f8f;
+                                      }
+                                    </style>
+                                  </defs>
+                                  <g id="Layer_2" data-name="Layer 2">
+                                    <g id="Layer_1-2" data-name="Layer 1">
+                                      <path
+                                        class="cls-1"
+                                        d="M24.26,7.21a13.59,13.59,0,0,0-24,0L0,7.69l.26.49a13.63,13.63,0,0,0,4.9,5.21,13.55,13.55,0,0,0,7.1,2,13.52,13.52,0,0,0,7.09-2,13.65,13.65,0,0,0,4.91-5.21l.26-.49Zm-12,7a6.52,6.52,0,1,1,6.51-6.52A6.51,6.51,0,0,1,12.26,14.21Z"
+                                      />
+                                      <path
+                                        class="cls-1"
+                                        d="M16.44,7.69a4.18,4.18,0,1,1-4.18-4.18A4.19,4.19,0,0,1,16.44,7.69Z"
+                                      />
+                                    </g>
+                                  </g>
+                                </svg>
+                              </a>
+                            </li>
+                            <li>
+                              <a
+                                class="uu-logout"
+                                href="/Teacher/Account/LogOut"
+                                data-title="Log Out"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18.98 24.5">
+                                  <defs>
+                                    <style>
+                                      .cls-1 {
+                                        fill: #8f8f8f;
+                                      }
+                                    </style>
+                                  </defs>
+                                  <g id="Layer_2" data-name="Layer 2">
+                                    <g id="Layer_1-2" data-name="Layer 1">
+                                      <path
+                                        class="cls-1"
+                                        d="M9.49,20.86a9.5,9.5,0,0,1-5-17.57L5.82,5.41a7,7,0,1,0,7.34,0l1.32-2.12a9.5,9.5,0,0,1-5,17.57Z"
+                                      />
+                                      <rect class="cls-1" x="8.24" width="2.5" height="11.37" />
+                                    </g>
+                                  </g>
+                                </svg>
+                              </a>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </ul>
+                  </li>
+                </div>
+              </ul>
+            </div>
+          </div>
+          <!-- end row -->
+        </div>
+        <!-- end container -->
+      </div>
+      <!-- End Header Wrapper -->
+    </header>
+
+    <div class="uuu-left-sidebar">
+      <div class="card d-none">
+        <div class="card-body">
+          <span class="d-middle menu-indicator"
+            ><img src="/Content/Image/AppIcon/Indicator.svg"
+          /></span>
+          <div class="row">
+            <div class="d-flex col-6">
+              <a href="/Teacher/Routine" title="Routine"
+                ><img src="/Content/Image/AppIcon/Routine-menu.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Routine</span
+                ></a
+              >
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/Report/ClassPerformance" title="Q&A Service"
+                ><img src="/Content/Image/AppIcon/ClassPerformance.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Class Performance</span
+                ></a
+              >
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/Community/Messages" title="Community"
+                ><img src="/Content/Image/AppIcon/CommunityMenu.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Community</span
+                ></a
+              >
+            </div>
+            <div class="d-flex px-1 col-12">
+              <h6 class="mb-0 menu-head"><span class="menu-text">Script Evaluation</span></h6>
+            </div>
+            <div class="d-flex col-6">
+              <a class="btn-courses-menu" href="/Teacher/ScriptEvaluation/Index" title="Evaluation"
+                ><img src="/Content/Image/AppIcon/Evaluation.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Evaluation</span
+                ></a
+              >
+            </div>
+
+            <div class="d-flex col-6">
+              <a href="/Teacher/ScriptEvaluation/TeacherEvaluationReview" title="Review"
+                ><img src="/Content/Image/AppIcon/Review.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Review</span
+                ></a
+              >
+            </div>
+            <div class="d-flex px-1 col-12">
+              <h6 class="mb-0 menu-head"><span class="menu-text">My Payment</span></h6>
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/Report/TeacherPaymentSummaryReport" title="Summary Report"
+                ><img src="/Content/Image/AppIcon/SummaryReport.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Summary Report</span
+                ></a
+              >
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/Report/Index" title="Class Payment Report"
+                ><img src="/Content/Image/AppIcon/ClassPayment.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Class Payment</span
+                ></a
+              >
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/Report/EvaluationPayment" title="Evaluation Payment Report"
+                ><img src="/Content/Image/AppIcon/EvaluationPayment.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Evaluation Payment</span
+                ></a
+              >
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/Report/MaterialsPayment" title="Materials Payment Report"
+                ><img src="/Content/Image/AppIcon/MaterialsPayment.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Materials Payment</span
+                ></a
+              >
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/QnA2/TeacherPaymentReport" title="Q&A Payment"
+                ><img src="/Content/Image/AppIcon/QnAPayment.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Q&A Payment</span
+                ></a
+              >
+            </div>
+            <div class="d-flex px-1 col-12">
+              <h6 class="mb-0 menu-head"><span class="menu-text">Question & Answer</span></h6>
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/QnA2/Index" title="Pending Question"
+                ><img src="/Content/Image/AppIcon/PendingQuestion.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Pending Question</span
+                ></a
+              >
+            </div>
+            <div class="d-flex col-6">
+              <a href="/Teacher/QnA2/ManageEditAnswer" title="Edit Answer"
+                ><img src="/Content/Image/AppIcon/EditAnswer.svg" alt="img" class="" /><span
+                  class="menu-text"
+                  >Edit Answer</span
+                ></a
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Start Mian Section -->
+    <div class="uu-main">
+      <div class="container" style="min-height: 40vh">
+        <div class="text-center customMessage"></div>
+
+        <style>
+          td,
+          th {
+            vertical-align: middle !important;
+          }
+
+          .modal-footer {
+            display: flex;
+            justify-content: center;
+            border-top: none;
+            margin-top: 2px;
+            flex-direction: row-reverse;
+          }
+
+          .modal .btn-success,
+          .modal .btn-danger {
+            padding: 8px 50px;
+            border-radius: 50px;
+            margin: 3px;
+          }
+        </style>
+        <table
+          id="DataGrid"
+          class="table table-bordered table-condensed table-hover table-responsive table-striped display"
+        >
+          <thead>
+            <tr>
+              <th>Serial</th>
+              <th>Program</th>
+              <th>Course</th>
+              <th>[Code] Exam & Subject</th>
+              <th>Version</th>
+              <th>Question</th>
+              <th>Pending</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody class="text-center">
+            <tr>
+              <td>1</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Higher Mathematics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 19, Marks:0">U1-Q19 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">7</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="73"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="19"
+                  data-questionVersion="1"
+                  data-pendingQuestion="7"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Physics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 7, Marks:0">U1-Q7 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">9</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="71"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="7"
+                  data-questionVersion="1"
+                  data-pendingQuestion="9"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Higher Mathematics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 16, Marks:0">U1-Q16 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">9</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="73"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="16"
+                  data-questionVersion="1"
+                  data-pendingQuestion="9"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Higher Mathematics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 20, Marks:0">U1-Q20 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">9</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="73"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="20"
+                  data-questionVersion="1"
+                  data-pendingQuestion="9"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Physics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 1, Marks:0">U1-Q1 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">10</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="71"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="1"
+                  data-questionVersion="1"
+                  data-pendingQuestion="10"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>6</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Chemistry)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 9, Marks:0">U1-Q9 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">10</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="72"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="9"
+                  data-questionVersion="1"
+                  data-pendingQuestion="10"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>7</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Chemistry)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 11, Marks:0">U1-Q11 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">10</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="72"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="11"
+                  data-questionVersion="1"
+                  data-pendingQuestion="10"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>8</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Higher Mathematics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 17, Marks:0">U1-Q17 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">10</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="73"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="17"
+                  data-questionVersion="1"
+                  data-pendingQuestion="10"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>9</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Higher Mathematics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 18, Marks:0">U1-Q18 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">10</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="73"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="18"
+                  data-questionVersion="1"
+                  data-pendingQuestion="10"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>10</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Higher Mathematics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 15, Marks:0">U1-Q15 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">10</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="73"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="15"
+                  data-questionVersion="1"
+                  data-pendingQuestion="10"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>11</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Chemistry)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 8, Marks:0">U1-Q8 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">11</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="72"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="8"
+                  data-questionVersion="1"
+                  data-pendingQuestion="11"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>12</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Physics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 4, Marks:0">U1-Q4 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">12</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="71"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="4"
+                  data-questionVersion="1"
+                  data-pendingQuestion="12"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>13</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Physics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 2, Marks:0">U1-Q2 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">13</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="71"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="2"
+                  data-questionVersion="1"
+                  data-pendingQuestion="13"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>14</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Chemistry)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 12, Marks:0">U1-Q12 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">15</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="72"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="12"
+                  data-questionVersion="1"
+                  data-pendingQuestion="15"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>15</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Physics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 3, Marks:0">U1-Q3 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">16</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="71"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="3"
+                  data-questionVersion="1"
+                  data-pendingQuestion="16"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>16</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Chemistry)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 10, Marks:0">U1-Q10 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">16</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="72"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="10"
+                  data-questionVersion="1"
+                  data-pendingQuestion="16"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>17</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Physics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 5, Marks:0">U1-Q5 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">22</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="71"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="5"
+                  data-questionVersion="1"
+                  data-pendingQuestion="22"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>18</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Chemistry)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 14, Marks:0">U1-Q14 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">22</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="72"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="14"
+                  data-questionVersion="1"
+                  data-pendingQuestion="22"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>19</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Chemistry)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 13, Marks:0">U1-Q13 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">60</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="72"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="13"
+                  data-questionVersion="1"
+                  data-pendingQuestion="60"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td>20</td>
+              <td>College Admission Program-2026</td>
+              <td>HCC SF&#x2B; FMT Service</td>
+              <td style="text-align: left">
+                [134] Final Model Test Live Exam For HCC-02 (Physics)
+              </td>
+
+              <td>Bangla</td>
+              <td nowrap><span title="UniqueSet: 1, Question: 6, Marks:0">U1-Q6 </span></td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">61</td>
+              <td>
+                <button
+                  data-examId="128844"
+                  data-courseId="2964"
+                  data-subjectId="71"
+                  data-uniqueSet="1"
+                  data-uniqueSetQuestionSerial="6"
+                  data-questionVersion="1"
+                  data-pendingQuestion="61"
+                  class="btn btn-primary btnStartEvaluation"
+                >
+                  Start Evaluation
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align: right; font-weight: bold" colspan="6">Total</td>
+              <td style="color: #bb5207; font-weight: bold" title="Pending student answer">342</td>
+              <td><a href="/Teacher/ScriptEvaluation/Index" class="btn btn-info">Back</a></td>
+            </tr>
+          </tbody>
+        </table>
+        <script type="text/javascript">
+          var delayTime = 60 * 1000;
+          setTimeout(() => window.location.reload(), delayTime);
+        </script>
+      </div>
+      <!-- end container -->
+    </div>
+    <!-- End Mian Section -->
+
+    <style>
+      div.uu-footer-top {
+        padding-top: 50px;
+        padding-bottom: 20px;
+      }
+    </style>
+    <!-- Start Footer Section -->
+    <footer>
+      <div class="container" style="max-width: 1200px !important">
+        <div class="uu-footer-top row">
+          <div class="col-md-4 col-sm-6">
+            <img
+              class="uu-footer-logo"
+              src="/Content/Image/Udvash-Unmesh-Online-Care-Logo-White.png"
+            />
+          </div>
+          <!-- end col -->
+
+          <div class="col-md-2 col-sm-6">
+            <h4 class="text-white">Help</h4>
+            <ul class="uu-footer-menu">
+              <li>
+                <a href="https://udvash-unmesh.com/AboutUs" target="_blank">About Us</a>
+              </li>
+              <li>
+                <a href="https://udvash-unmesh.com/privacy-policy" target="_blank"
+                  >Privacy Policy</a
+                >
+              </li>
+              <li>
+                <a href="https://udvash-unmesh.com/terms-conditions" target="_blank"
+                  >Terms & Conditions</a
+                >
+              </li>
+              <li>
+                <a href="https://udvash-unmesh.com/Faq" target="_blank">FAQs</a>
+              </li>
+              <li>
+                <a href="https://udvash-unmesh.com/ContactUs" target="_blank">Contact Us</a>
+              </li>
+            </ul>
+          </div>
+          <!-- end col -->
+
+          <div class="col-md-2 col-sm-6">
+            <h4 class="text-white">Explore</h4>
+            <ul class="uu-footer-menu">
+              <li>
+                <a href="https://udvash.com" target="_blank">Udvash</a>
+              </li>
+              <li>
+                <a href="https://unmesh.com" target="_blank">Unmesh</a>
+              </li>
+            </ul>
+          </div>
+          <!-- end col -->
+
+          <div class="col-md-4 col-sm-6">
+            <h4 class="text-white">Get in Touch</h4>
+            <ul class="uu-footer-menu">
+              <li>
+                <p class="mb-2 text-white">
+                  Address: Hossain Tower (5th Floor), 75, Green Road, Farmgate; Sher-e-Bangla Nagar
+                  PS; Dhaka-1205.
+                </p>
+              </li>
+              <li>
+                <p class="mb-0">
+                  <a class="mb-0 text-white" href="tel:09666775566">Helpline: 09666775566</a>
+                </p>
+              </li>
+              <li>
+                <p class="mb-0 text-white">
+                  Email:
+                  <a
+                    class="mb-0 text-white"
+                    href="/cdn-cgi/l/email-protection#a6cfc8c0c9e6d3c2d0c7d5ce8bd3c8cbc3d5ce88c5c9cb"
+                    ><span
+                      class="__cf_email__"
+                      data-cfemail="bbd2d5ddd4fbcedfcddac8d396ced5d6dec8d395d8d4d6"
+                      >[email&#160;protected]</span
+                    ></a
+                  >
+                </p>
+              </li>
+              <li class="social-icons">
+                <div class="form-inline media">
+                  <a href="https://www.youtube.com/c/UdvashUnmesh">
+                    <img alt="" src="/Content/Image/youtube.png" />
+                  </a>
+                  <a href="https://www.instagram.com/udvash_unmesh/">
+                    <img alt="" src="/Content/Image/instagram.png" />
+                  </a>
+                  <a href="https://www.linkedin.com/in/udvashunmesh/">
+                    <img alt="" src="/Content/Image/linkedIn.png" />
+                  </a>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <!-- end col -->
+        </div>
+        <!-- end row -->
+        <!-- end footer top section -->
+
+        <div class="uu-footer-bottom row">
+          <div class="col-12">
+            <p class="text-center">
+              <span>Copyright &copy; Udvash-Unmesh Online Care. All rights reserved. 2026</span>
+              | <span>P-1 | V-line-teacher-portal-6c56bd579d-qbgtt.229.2</span>
+            </p>
+          </div>
+        </div>
+        <!-- end row -->
+        <!-- end footer bottom section -->
+      </div>
+      <!-- end container -->
+    </footer>
+    <!-- End Footer Section -->
+
+    <!-- ----------------------------------------------------------------
+    OnnoRokom Analytics M2SaaS
+----------------------------------------------------------------- -->
+    <iframe
+      id="AnalyticsIFrame"
+      src=""
+      style="height: 1px; width: 1px; border: none; position: absolute"
+    ></iframe>
+    <script
+      data-cfasync="false"
+      src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"
+    ></script>
+    <script type="text/javascript" src="https://onnorokomprojukti.com/lib/m2-analytics.js"></script>
+
+    <!-- ----------------------------------------------------------------
+        Page Scripts
+----------------------------------------------------------------- -->
+    <!-- Bootstrap -->
+    <script
+      type="text/javascript"
+      src="/Content/UmsTheme/assets/lib/bootstrap/bootstrap.bundle.min.js"
+    ></script>
+    <script
+      type="text/javascript"
+      src="/Content/UmsTheme/assets/lib/bootstrap-datepicker/bootstrap-datepicker.js"
+    ></script>
+
+    <!-- Fontawesome -->
+    <script src="/Scripts/bootstrap-datetimepicker.min.js"></script>
+    <!-- Common -->
+    <script type="text/javascript" src="/Scripts/Common-2.0.js?v=136.22646"></script>
+    <!-- Main -->
+    <script type="text/javascript" src="/Content/UmsTheme/assets/js/main.js?v=136.22646"></script>
+    <script type="text/javascript" src="/Scripts/footer.js?v=136.22646"></script>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3690GVQMWS"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+
+      gtag("config", "G-3690GVQMWS");
+    </script>
+    <!--Browser suggested script-->
+
+    <script type="text/javascript" src="/Scripts/jquery.blockUI.js"></script>
+    <script src="/Scripts/bootboxCustom.js"></script>
+    <script type="text/javascript">
+      let parameterData;
+
+      $(document).ready(function () {
+        $(document).on("click", ".btnStartEvaluation", function () {
+          parameterData = GetParameterValues(this);
+
+          $.ajax({
+            url: "/Teacher/SaqEvaluation/CheckForRunningSaqOnlineWrittenExamEvaluation",
+            type: "POST",
+            async: true,
+            beforeSend: function () {
+              $.blockUI({
+                timeout: 0,
+                message: '<h1><img src="/Content/Image/ajax-loader.gif" /> Processing...</h1>',
+              });
+            },
+            success: function (response) {
+              $.unblockUI();
+              if (response.isSuccess) {
+                if (response.runningDto != null && response.runningDto.StudentScriptType != 10) {
+                  EvaluationSwitchingDecision();
+                } else {
+                  ExamOnlineWrittenQuestionDisplay();
+                }
+              } else {
+                $.fn.customMessage({
+                  displayMessage: response.messasge,
+                  displayMessageType: "e",
+                });
+              }
+            },
+            complete: function () {
+              $.unblockUI();
+            },
+            error: function (data) {},
+          });
+        });
+      });
+
+      function EvaluationSwitchingDecision() {
+        bootbox
+          .confirm({
+            message:
+              "<h5 style='text-align: center;'>Are you sure to switch on regular student scripts without completing existing scripts?</h5>",
+            closeButton: false,
+            "margin-top": function () {
+              var w = $(window).height();
+              var b = $(".modal-dialog").height();
+              // should not be (w-h)/2
+              var h = (w - b) / 2;
+              return h + "px";
+            },
+            buttons: {
+              confirm: {
+                label: "Yes",
+                className: "btn-success",
+              },
+              cancel: {
+                label: "No",
+                className: "btn-danger",
+              },
+            },
+            callback: function (result) {
+              if (result) {
+                RemoveCurrentRunningOnlineWrittenExamEvaluation();
+              } else {
+                ExamOnlineWrittenQuestionDisplay();
+              }
+            },
+          })
+          .find(".modal-content")
+          .css({
+            "margin-top": function () {
+              var w = $(window).height();
+              var b = $(".modal-dialog").height();
+              // should not be (w-h)/2
+              var h = (w - b) / 2;
+              return h + "px";
+            },
+          });
+      }
+
+      function RemoveCurrentRunningOnlineWrittenExamEvaluation() {
+        $.ajax({
+          url: "/Teacher/SaqEvaluation/RemoveCurrentRunningOnlineWrittenExamEvaluation",
+          type: "POST",
+          async: true,
+          beforeSend: function () {
+            $.blockUI({
+              timeout: 0,
+              message: '<h1><img src="/Content/Image/ajax-loader.gif" /> Processing...</h1>',
+            });
+          },
+          success: function (response) {
+            $.unblockUI();
+            if (response.isSuccess) {
+              ExamOnlineWrittenQuestionDisplay();
+            } else {
+              $.fn.customMessage({
+                displayMessage: response.messasge,
+                displayMessageType: "e",
+              });
+            }
+          },
+          complete: function () {
+            $.unblockUI();
+          },
+          error: function (data) {},
+        });
+      }
+
+      function ExamOnlineWrittenQuestionDisplay() {
+        let url = "/Teacher/OnlineWrittenEvaluation/ExamOnlineWrittenQuestionDisplay";
+        url += "?" + decodeURIComponent($.param(parameterData, true));
+        window.location.href = url;
+      }
+
+      function GetParameterValues(element) {
+        let examId = $(element).attr("data-examId");
+        let courseId = $(element).attr("data-courseId");
+        let subjectId = $(element).attr("data-subjectId");
+        let uniqueSet = $(element).attr("data-uniqueSet");
+        let uniqueSetQuestionSerial = $(element).attr("data-uniqueSetQuestionSerial");
+        let questionVersion = $(element).attr("data-questionVersion");
+        let pendingQuestion = $(element).attr("data-pendingQuestion");
+
+        return {
+          examId,
+          courseId,
+          subjectId,
+          uniqueSet,
+          uniqueSetQuestionSerial,
+          questionVersion,
+          pendingQuestion,
+        };
+      }
+    </script>
+
+    <script
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925"
+      integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A=="
+      data-cf-beacon='{"version":"2024.11.0","token":"e2dc754721a241f68c48ca3ceb1ab8c5"}'
+      crossorigin="anonymous"
+    ></script>
+  </body>
+</html>

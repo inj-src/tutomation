@@ -3,7 +3,7 @@ import type { Page } from "playwright"
 import type { ScriptCandidate } from "./site.js"
 import { candidateEvaluationUrl } from "./site-url.js"
 
-const evaluationPagePattern =
+export const evaluationPagePattern =
   /\/(?:ExamOnlineWrittenQuestionDisplay|ExamSaqQuestionDisplay)(?:\?|$)/i
 
 function text(value: string | undefined): string {
@@ -22,13 +22,13 @@ function candidateButtonSelector(candidate: ScriptCandidate): string {
   ].join("")
 }
 
-function isCandidateEvaluation(
-  urlValue: string,
+async function isCandidateEvaluation(
+  page: Page,
   candidate: ScriptCandidate
-): boolean {
-  const url = new URL(urlValue)
+): Promise<boolean> {
+  const url = new URL(page.url())
   if (!evaluationPagePattern.test(url.toString())) return false
-  return Object.entries({
+  const urlMatches = Object.entries({
     examId: candidate.examId,
     courseId: candidate.courseId,
     subjectId: candidate.subjectId,
@@ -37,6 +37,23 @@ function isCandidateEvaluation(
     questionVersion: candidate.questionVersion,
     pendingQuestion: candidate.pendingQuestion,
   }).every(([key, value]) => url.searchParams.get(key) === value)
+  if (!urlMatches) return false
+
+  return page.evaluate(
+    (expected) =>
+      Object.entries(expected).every(
+        ([id, value]) =>
+          document.querySelector<HTMLInputElement>(`#${id}`)?.value === value
+      ),
+    {
+      ExamsId: candidate.examId,
+      CourseId: candidate.courseId,
+      SubjectId: candidate.subjectId,
+      UniqueSet: candidate.uniqueSet,
+      QuestionSerial: candidate.uniqueSetQuestionSerial,
+      QuestionVersion: candidate.questionVersion,
+    }
+  )
 }
 
 async function waitForCandidateCanvas(page: Page): Promise<void> {
@@ -47,22 +64,14 @@ async function waitForCandidateCanvas(page: Page): Promise<void> {
 }
 
 async function exitEvaluation(page: Page): Promise<void> {
+  const exitButton = page.locator("#questionEvaluationExitBtn").first()
+  await exitButton.waitFor({ state: "visible", timeout: 10_000 })
   await Promise.all([
     page.waitForURL((url) => !evaluationPagePattern.test(url.toString()), {
       waitUntil: "domcontentloaded",
       timeout: 30_000,
     }),
-    page.evaluate(() => {
-      const form = document.querySelector<HTMLFormElement>(
-        "#ExamSaqQuestionDisplayForm, #ExamOnlineWrittenQuestionDisplayForm"
-      )
-      const submitText =
-        document.querySelector<HTMLInputElement>("#FormSubmitText")
-      if (!form || !submitText)
-        throw new Error("The evaluation exit form was not found.")
-      submitText.value = "Exit"
-      HTMLFormElement.prototype.submit.call(form)
-    }),
+    exitButton.click(),
   ])
 }
 
@@ -93,7 +102,7 @@ export async function startCandidate(
           timeout: 60_000,
         })
       }
-      if (isCandidateEvaluation(page.url(), candidate)) {
+      if (await isCandidateEvaluation(page, candidate)) {
         await page.reload({
           waitUntil: "domcontentloaded",
           timeout: 60_000,
@@ -152,7 +161,7 @@ export async function startCandidate(
         ])
       }
 
-      if (!isCandidateEvaluation(page.url(), candidate)) {
+      if (!(await isCandidateEvaluation(page, candidate))) {
         if (attempt === 1) {
           throw new Error(
             `The website kept redirecting to ${page.url()} instead of the requested script.`

@@ -1,7 +1,6 @@
 import type { Page } from "playwright"
 
 import type { ScriptCandidate, ScriptCategory } from "./site.js"
-import { evaluationPagePattern } from "./site-navigation.js"
 
 const baseUrl = "https://teacher.udvash-unmesh.com"
 
@@ -19,12 +18,7 @@ function absoluteUrl(value: string): string {
 }
 
 export class SiteListing {
-  // ponytail: keep the last list during sticky redirects; refresh after Exit.
-  private cachedCategories: ScriptCategory[] = []
-  private cachedCandidates = new Map<string, ScriptCandidate[]>()
-
   async categories(page: Page): Promise<ScriptCategory[]> {
-    if (evaluationPagePattern.test(page.url())) return this.cachedCategories
     const rows = page
       .locator("table")
       .filter({ has: page.locator("th", { hasText: /^Pending$/i }) })
@@ -32,10 +26,7 @@ export class SiteListing {
       .filter({ has: page.locator('a[href*="NewScriptEvaluationDetails"]') })
     const count = await rows.count()
 
-    if (count === 0) {
-      this.cachedCategories = []
-      return []
-    }
+    if (count === 0) return []
 
     const categories: ScriptCategory[] = []
     for (let rowIndex = 0; rowIndex < count; rowIndex += 1) {
@@ -59,28 +50,21 @@ export class SiteListing {
         examId,
       })
     }
-    this.cachedCategories = categories.sort(
+    return categories.sort(
       (left, right) => right.pending - left.pending || left.index - right.index
     )
-    return this.cachedCategories
   }
 
   async candidates(
     page: Page,
     category: ScriptCategory
   ): Promise<ScriptCandidate[]> {
-    if (evaluationPagePattern.test(page.url())) {
-      return this.cachedCandidates.get(category.examId) ?? []
-    }
     const rows = page
       .locator("table tbody tr")
       .filter({ has: page.locator(".btnStartEvaluation") })
     const count = await rows.count()
 
-    if (count === 0) {
-      this.cachedCandidates.set(category.examId, [])
-      return []
-    }
+    if (count === 0) return []
 
     const candidates: ScriptCandidate[] = []
     for (let rowIndex = 0; rowIndex < count; rowIndex += 1) {
@@ -117,10 +101,8 @@ export class SiteListing {
       })
     }
 
-    const sorted = candidates.sort(
+    return candidates.sort(
       (left, right) => right.pending - left.pending || left.index - right.index
     )
-    this.cachedCandidates.set(category.examId, sorted)
-    return sorted
   }
 }

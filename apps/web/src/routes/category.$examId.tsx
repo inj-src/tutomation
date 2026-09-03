@@ -27,6 +27,10 @@ import {
   type EvaluationResult,
 } from "../lib/api"
 
+function stableEntryId(id: string): string {
+  return id.split("~").slice(0, 6).join("~")
+}
+
 export const Route = createFileRoute("/category/$examId")({
   validateSearch: (search: Record<string, unknown>) => ({
     entry: typeof search.entry === "string" ? search.entry : undefined,
@@ -54,8 +58,14 @@ function CategoryWorkspace() {
   const [editorApi, setEditorApi] = useState<ExcalidrawImperativeAPI>()
 
   const entryList: Entry[] = entries.data ?? []
-  const selectedId = entryParam ?? entryList[0]?.id
-  const selected = entryList.find((entry) => entry.id === selectedId)
+  const selected = entryList.find(
+    (entry) =>
+      entry.id === entryParam ||
+      (entryParam !== undefined &&
+        stableEntryId(entry.id) === stableEntryId(entryParam))
+  )
+  const selectedId =
+    selected?.id ?? (!entryParam ? entryList[0]?.id : undefined)
   const selectedIsMissing = Boolean(entryParam && !selected)
   const categoryIsGone =
     entries.isError && /404|category|not found/i.test(entries.error.message)
@@ -76,6 +86,8 @@ function CategoryWorkspace() {
       void navigate({ to: "/", replace: true })
     } else if (!entryParam) {
       void navigate({ search: { entry: entryList[0].id }, replace: true })
+    } else if (selected && entryParam !== selected.id) {
+      void navigate({ search: { entry: selected.id }, replace: true })
     } else if (selectedIsMissing) {
       void queryClient.invalidateQueries({
         queryKey: ["capture", examId, entryParam],
@@ -92,6 +104,7 @@ function CategoryWorkspace() {
     examId,
     navigate,
     queryClient,
+    selected,
     selectedIsMissing,
   ])
 

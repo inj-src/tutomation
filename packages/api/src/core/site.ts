@@ -22,6 +22,7 @@ import {
 } from "./site-capture.js"
 import { captureReferences as captureReferencesOnPage } from "./site-references.js"
 import { SiteListing } from "./site-listing.js"
+import { evaluationPagePattern } from "./site-navigation.js"
 
 export type ScriptCategory = {
   index: number
@@ -81,7 +82,6 @@ export function candidateId(candidate: ScriptCandidate): string {
     candidate.uniqueSet,
     candidate.uniqueSetQuestionSerial,
     candidate.questionVersion,
-    candidate.pendingQuestion,
   ].join("~")
 }
 
@@ -137,8 +137,10 @@ export class TeacherSite {
     return this.context
   }
 
-  private async navigate(url: string): Promise<Page> {
-    const page = this.currentPage()
+  private async navigate(
+    url: string,
+    page = this.currentPage()
+  ): Promise<Page> {
     await page.goto(url, {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
@@ -163,14 +165,29 @@ export class TeacherSite {
     return page
   }
 
+  private async withListingPage<T>(
+    url: string,
+    work: (page: Page) => Promise<T>
+  ): Promise<T> {
+    const current = this.currentPage()
+    const isolated = evaluationPagePattern.test(current.url())
+    const page = isolated ? await this.currentContext().newPage() : current
+    try {
+      return await work(await this.navigate(url, page))
+    } finally {
+      if (isolated) await page.close()
+    }
+  }
+
   async listCategories(): Promise<ScriptCategory[]> {
-    return this.listing.categories(await this.navigate(indexUrl))
+    return this.withListingPage(indexUrl, (page) =>
+      this.listing.categories(page)
+    )
   }
 
   async listCandidates(category: ScriptCategory): Promise<ScriptCandidate[]> {
-    return this.listing.candidates(
-      await this.navigate(category.detailsUrl),
-      category
+    return this.withListingPage(category.detailsUrl, (page) =>
+      this.listing.candidates(page, category)
     )
   }
 
@@ -179,9 +196,11 @@ export class TeacherSite {
     outputDirectory: string
   ): Promise<ScriptCapture> {
     const currentPage = this.currentPage()
-    const page = urlsEqual(currentPage.url(), candidate.detailsUrl)
-      ? currentPage
-      : await this.navigate(candidate.detailsUrl)
+    const page =
+      evaluationPagePattern.test(currentPage.url()) ||
+      urlsEqual(currentPage.url(), candidate.detailsUrl)
+        ? currentPage
+        : await this.navigate(candidate.detailsUrl)
     return captureScriptOnPage(page, candidate, outputDirectory)
   }
 

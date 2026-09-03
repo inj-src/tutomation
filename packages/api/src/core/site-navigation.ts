@@ -6,38 +6,143 @@ import { candidateEvaluationUrl } from "./site-url.js"
 export const evaluationPagePattern =
   /\/(?:ExamOnlineWrittenQuestionDisplay|ExamSaqQuestionDisplay)(?:\?|$)/i
 
-function text(value: string | undefined): string {
-  return (value ?? "").replace(/\s+/g, " ").trim()
+type RecordValue = Record<string, unknown>
+type RunningResponse = {
+  isSuccess?: boolean
+  messasge?: string
+  message?: string
+  runningDto?: RecordValue | null
 }
 
-function candidateButtonSelector(candidate: ScriptCandidate): string {
-  return [
-    `.btnStartEvaluation[data-examid="${candidate.examId}"]`,
-    `[data-courseid="${candidate.courseId}"]`,
-    `[data-subjectid="${candidate.subjectId}"]`,
-    `[data-uniqueset="${candidate.uniqueSet}"]`,
-    `[data-uniquesetquestionserial="${candidate.uniqueSetQuestionSerial}"]`,
-    `[data-questionversion="${candidate.questionVersion}"]`,
-    `[data-pendingquestion="${candidate.pendingQuestion}"]`,
-  ].join("")
+function record(value: unknown): RecordValue | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as RecordValue)
+    : undefined
+}
+
+function runningValue(running: RecordValue, key: string): string {
+  const nested = Object.values(running)
+    .map(record)
+    .find((value) => {
+      return Boolean(
+        value && (key in value || "UniqueSetQuestionSerial" in value)
+      )
+    })
+  return String(nested?.[key] ?? running[key] ?? "")
+}
+
+function isRequestedRunning(
+  running: RecordValue,
+  candidate: ScriptCandidate
+): boolean {
+  return (
+    runningValue(running, "ExamId") === candidate.examId &&
+    runningValue(running, "CourseId") === candidate.courseId &&
+    runningValue(running, "SubjectId") === candidate.subjectId &&
+    runningValue(running, "UniqueSet") === candidate.uniqueSet &&
+    runningValue(running, "UniqueSetQuestionSerial") ===
+      candidate.uniqueSetQuestionSerial &&
+    (runningValue(running, "QuestionVersion") === candidate.questionVersion ||
+      runningValue(running, "Version") === candidate.questionVersion)
+  )
+}
+
+async function checkRunning(page: Page): Promise<RecordValue | null> {
+  const response = await page.evaluate(async () => {
+    const result = await fetch(
+      "/Teacher/SaqEvaluation/CheckForRunningSaqOnlineWrittenExamEvaluation",
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      }
+    )
+    return {
+      ok: result.ok,
+      status: result.status,
+      payload: (await result.json()) as RunningResponse,
+    }
+  })
+  if (!response.ok || !response.payload.isSuccess) {
+    throw new Error(
+      response.payload.messasge ??
+        response.payload.message ??
+        `Running-session check failed with status ${response.status}.`
+    )
+  }
+  return response.payload.runningDto ?? null
+}
+
+async function removeCurrentRunning(page: Page): Promise<void> {
+  const response = await page.evaluate(async () => {
+    const result = await fetch(
+      "/Teacher/SaqEvaluation/RemoveCurrentRunningOnlineWrittenExamEvaluation",
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      }
+    )
+    return {
+      ok: result.ok,
+      status: result.status,
+      payload: (await result.json()) as RunningResponse,
+    }
+  })
+  if (!response.ok || !response.payload.isSuccess) {
+    throw new Error(
+      response.payload.messasge ??
+        response.payload.message ??
+        `Running-session removal failed with status ${response.status}.`
+    )
+  }
+}
+
+async function exitEvaluation(page: Page): Promise<void> {
+  const result = await page.evaluate(async () => {
+    const form = document.querySelector<HTMLFormElement>(
+      "#ExamSaqQuestionDisplayForm, #ExamOnlineWrittenQuestionDisplayForm"
+    )
+    if (!form)
+      return { ok: false, status: 0, error: "Evaluation form not found." }
+
+    const submitText = form.querySelector<HTMLInputElement>("#FormSubmitText")
+    if (submitText) submitText.value = "Exit"
+    const body = new URLSearchParams()
+    for (const [key, value] of new FormData(form).entries()) {
+      if (typeof value === "string") body.append(key, value)
+    }
+    const response = await fetch(form.action, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    })
+    return { ok: response.ok, status: response.status, error: "" }
+  })
+  if (!result.ok) {
+    throw new Error(
+      result.error || `Evaluation exit failed with status ${result.status}.`
+    )
+  }
+}
+
+async function releaseRunning(page: Page): Promise<void> {
+  if (evaluationPagePattern.test(page.url())) {
+    await exitEvaluation(page)
+    return
+  }
+  await removeCurrentRunning(page)
 }
 
 async function isCandidateEvaluation(
   page: Page,
   candidate: ScriptCandidate
 ): Promise<boolean> {
-  const url = new URL(page.url())
-  if (!evaluationPagePattern.test(url.toString())) return false
-  const urlMatches = Object.entries({
-    examId: candidate.examId,
-    courseId: candidate.courseId,
-    subjectId: candidate.subjectId,
-    uniqueSet: candidate.uniqueSet,
-    uniqueSetQuestionSerial: candidate.uniqueSetQuestionSerial,
-    questionVersion: candidate.questionVersion,
-    pendingQuestion: candidate.pendingQuestion,
-  }).every(([key, value]) => url.searchParams.get(key) === value)
-  if (!urlMatches) return false
+  if (!evaluationPagePattern.test(page.url())) return false
 
   return page.evaluate(
     (expected) =>
@@ -63,136 +168,34 @@ async function waitForCandidateCanvas(page: Page): Promise<void> {
   })
 }
 
-async function exitEvaluation(page: Page): Promise<void> {
-  const exitButton = page.locator("#questionEvaluationExitBtn").first()
-  await exitButton.waitFor({ state: "visible", timeout: 10_000 })
-  await Promise.all([
-    page.waitForURL((url) => !evaluationPagePattern.test(url.toString()), {
-      waitUntil: "domcontentloaded",
-      timeout: 30_000,
-    }),
-    exitButton.click(),
-  ])
-}
-
-async function resetToDetails(
-  page: Page,
-  candidate: ScriptCandidate,
-  clearCapturedResponses: () => void
-): Promise<void> {
-  await exitEvaluation(page)
-  clearCapturedResponses()
-  await page.goto(candidate.detailsUrl, {
-    waitUntil: "domcontentloaded",
-    timeout: 60_000,
-  })
-}
-
 export async function startCandidate(
   page: Page,
   candidate: ScriptCandidate,
   clearCapturedResponses: () => void
 ): Promise<void> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const button = page.locator(candidateButtonSelector(candidate))
-    if ((await button.count()) === 0) {
-      if (!evaluationPagePattern.test(page.url())) {
-        await page.goto(candidateEvaluationUrl(candidate), {
-          waitUntil: "domcontentloaded",
-          timeout: 60_000,
-        })
-      }
-      if (await isCandidateEvaluation(page, candidate)) {
-        await page.reload({
-          waitUntil: "domcontentloaded",
-          timeout: 60_000,
-        })
-        await waitForCandidateCanvas(page)
-        return
-      }
-      if (!evaluationPagePattern.test(page.url())) {
-        throw new Error(
-          "The selected script is no longer available. Reload the script list and choose another entry."
-        )
-      }
-      if (attempt === 1) {
-        throw new Error(
-          `The website kept redirecting to ${page.url()} instead of the requested script.`
-        )
-      }
-      await resetToDetails(page, candidate, clearCapturedResponses)
-      continue
+    const running = await checkRunning(page)
+    if (running && !isRequestedRunning(running, candidate)) {
+      await releaseRunning(page)
+      clearCapturedResponses()
     }
 
-    await button.click()
-    try {
-      const dialog = page
-        .locator(".bootbox:visible, .modal:visible, [role=dialog]:visible")
-        .last()
-      const outcome = await Promise.race([
-        page
-          .waitForURL(evaluationPagePattern, {
-            waitUntil: "domcontentloaded",
-            timeout: 30_000,
-          })
-          .then(() => "evaluation" as const),
-        dialog
-          .waitFor({ state: "visible", timeout: 30_000 })
-          .then(() => "dialog" as const),
-      ])
+    await page.goto(candidateEvaluationUrl(candidate), {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    })
 
-      if (outcome === "dialog") {
-        const dialogText = text(await dialog.innerText())
-        const yes = dialog.getByRole("button", { name: "Yes", exact: true })
-        if (
-          !/switch|running|existing/i.test(dialogText) ||
-          (await yes.count()) === 0
-        ) {
-          throw new Error(
-            `The website did not start the script because it reported: ${dialogText}. Resolve it on the site and retry.`
-          )
-        }
-        await Promise.all([
-          page.waitForURL(evaluationPagePattern, {
-            waitUntil: "domcontentloaded",
-            timeout: 30_000,
-          }),
-          yes.click(),
-        ])
-      }
-
-      if (!(await isCandidateEvaluation(page, candidate))) {
-        if (attempt === 1) {
-          throw new Error(
-            `The website kept redirecting to ${page.url()} instead of the requested script.`
-          )
-        }
-        await resetToDetails(page, candidate, clearCapturedResponses)
-        continue
-      }
-
+    if (await isCandidateEvaluation(page, candidate)) {
       await waitForCandidateCanvas(page)
       return
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        /instead of the requested script/.test(error.message)
-      ) {
-        throw error
-      }
-      const dialog = page.locator(
-        ".bootbox:visible, .modal:visible, [role=dialog]:visible"
-      )
-      const dialogText =
-        (await dialog.count()) > 0 ? text(await dialog.last().innerText()) : ""
-      if (dialogText) {
-        throw new Error(
-          `The website did not start the script because it reported: ${dialogText}. Resolve it on the site and retry.`
-        )
-      }
+    }
+
+    if (attempt === 1) {
       throw new Error(
-        `Start Evaluation did not navigate to the requested evaluation page. Current URL: ${page.url()}`
+        `The website kept loading a different evaluation instead of the requested script: ${page.url()}`
       )
     }
+    await releaseRunning(page)
+    clearCapturedResponses()
   }
 }

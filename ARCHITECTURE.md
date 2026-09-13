@@ -11,9 +11,8 @@ scraped live.
 apps/
   server/       Hono Node adapter entry point
   web/          TanStack Router + Vite teacher workspace
-  cli/          login and agent-oriented evaluator
 packages/
-  api/          Hono routes, Playwright scraper, AI evaluator, renderer
+  api/          Hono routes, Playwright scraper, and AI evaluator
   shared/       browser-safe URL and image-scale helpers
   ui/           shadcn component source and shared styles
 ```
@@ -30,8 +29,6 @@ Important boundaries:
   `candidateEvaluationUrl` and `canonicalImageSize`.
 - `@workspace/ui` contains the installed shadcn components.
 - The web app calls Hono through `hc<AppType>` and `parseResponse`; it does not maintain a generic untyped fetch wrapper.
-- The CLI uses the same Hono app and typed RPC client with a local fetch
-  adapter. It does not make network HTTP calls.
 
 ## Runtime topology
 
@@ -39,7 +36,7 @@ Important boundaries:
 Teacher browser
       |
       v
-apps/web  -- typed Hono RPC -->  packages/api  <-- direct typed RPC -- apps/cli
+apps/web  -- typed Hono RPC -->  packages/api
                                       |
                                       v
                               apps/server / Hono Node adapter
@@ -58,10 +55,10 @@ page and closes it in `finally`. This prevents a page navigating for one
 request from corrupting another request while retaining warm Chromium startup
 and cookies.
 
-Authentication is persisted in the Git-ignored `.auth/` directory. The CLI
-login command saves credentials and browser storage state. If a request lands
-on the login page, the context authenticates once and waiting requests retry
-their original URL.
+Authentication is persisted in the Git-ignored `.auth/` directory. The web
+login flow saves credentials and browser storage state. If a request lands on
+the login page, the context authenticates once and waiting requests retry their
+original URL.
 
 The server has no category, entry, capture, or reference cache. The only
 intentional server memory is the AI evaluator state:
@@ -109,8 +106,8 @@ A capture:
 6. Reads every ordered script-image URL from the portal carousel metadata.
 7. Downloads all script images concurrently through Playwright's authenticated
    request context, without clicking through the carousel, and saves raw bytes.
-8. Post-capture normalizes EXIF, classifies orientation with warm PaddleOCR, and
-   writes corrected PNGs with Sharp.
+8. Post-capture normalizes EXIF, asks the warm Dedoc EfficientNet-B0 service
+   for a four-way clockwise correction, and writes corrected PNGs with Sharp.
 9. Captures the question and sample answer together from the question `<thead>`.
 10. Saves metadata, logs `image.orientation.completed`, and returns ordered page data URLs plus a persisted `captureId`.
 11. Evaluation reuses that handle from disk; an expired handle returns `CAPTURE_EXPIRED` without recapturing the portal.
@@ -131,10 +128,19 @@ and paths:
 
 Every `questionImage_N[data-url]` slide is sorted by the portal's `ImageOrder`.
 Those exact URLs are downloaded concurrently. EXIF orientation is normalized
-with Sharp; a warm local PaddleOCR worker classifies all pages and Sharp applies
-90/180/270 degree corrections before AI, canvas, and submission. The server
-never guesses from arbitrary page images or clicks next/previous to discover
-later pages.
+with Sharp, then all normalized PNG paths are sent in one batch to the local
+Dedoc orientation service. It returns a confidence-bearing correction of 0,
+90, 180, or 270 degrees. Sharp applies that correction before AI, canvas, and
+submission. The server never guesses from arbitrary page images or clicks
+next/previous to discover later pages.
+
+Dedoc runs as the separate `dedoc-orientation` workspace package during root
+development. Its launcher starts the project-local CPU Python runtime and
+checkpoint, forwards SIGINT/SIGTERM/SIGHUP, and waits for the child to exit.
+Configure the API with `ORIENTATION_BASE_URL` (default
+`http://127.0.0.1:9380`) and `ORIENTATION_TIMEOUT_MS`. A failed or invalid
+orientation response keeps the normalized image unchanged and does not bring
+down the API. The result is recorded in the `image.orientation.completed` log.
 
 ### Question and sample answer
 

@@ -1,205 +1,84 @@
-import { createInterface, type Interface } from "node:readline"
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
-import { existsSync } from "node:fs"
-import { fileURLToPath } from "node:url"
+import { z } from "zod"
 
 export type OrientationAngle = 0 | 90 | 180 | 270
 
 export type ImageOrientation = {
   angle: OrientationAngle
   confidence: number | null
-  source: "paddleocr" | "fallback"
+  source: "dedoc" | "fallback"
 }
 
-type WorkerRequest = { id: number; paths: string[] }
-type WorkerResponse =
-  | { ready: true }
-  | { id: number; results: Array<{ angle: number; confidence: number | null }> }
-  | { id: number; error: string }
+const angleSchema = z.union([
+  z.literal(0),
+  z.literal(90),
+  z.literal(180),
+  z.literal(270),
+])
+const responseSchema = z.object({
+  results: z.array(
+    z.object({
+      angle: angleSchema,
+      confidence: z.number().min(0).max(1).nullable(),
+      source: z.literal("dedoc"),
+    })
+  ),
+})
 
-type PendingRequest = {
-  resolve: (value: ImageOrientation[]) => void
-  reject: (error: Error) => void
-  paths: string[]
-}
-
-const workerPath = fileURLToPath(
-  new URL("../../orientation/worker.py", import.meta.url)
+const orientationBaseUrl =
+  process.env.ORIENTATION_BASE_URL ?? "http://127.0.0.1:9380"
+const classifyUrl = new URL(
+  "classify",
+  `${orientationBaseUrl.replace(/\/+$/, "")}/`
 )
-const virtualenvPython = fileURLToPath(
-  new URL("../../orientation/.venv/bin/python", import.meta.url)
-)
-
-function fallback(paths: string[]): ImageOrientation[] {
-  return paths.map(() => ({ angle: 0, confidence: null, source: "fallback" }))
-}
-
-function validAngle(value: number): OrientationAngle {
-  if (value === 90 || value === 180 || value === 270) return value
-  return 0
-}
 
 function timeoutValue(name: string, fallbackValue: number): number {
   const value = Number.parseInt(process.env[name] ?? "", 10)
   return Number.isFinite(value) && value > 0 ? value : fallbackValue
 }
 
-/** Convert Paddle's detected clockwise orientation into Sharp's rotation. */
+function fallback(): ImageOrientation {
+  return { angle: 0, confidence: null, source: "fallback" }
+}
+
+/** The classifier returns the clockwise correction that Sharp should apply. */
 export function correctionRotation(angle: OrientationAngle): OrientationAngle {
-  return ((360 - angle) % 360) as OrientationAngle
+  return angle
 }
 
 export class OrientationClassifier {
-  private process: ChildProcessWithoutNullStreams | undefined
-  private lines: Interface | undefined
-  private starting: Promise<boolean> | undefined
-  private unavailable = process.env.PADDLEOCR_ENABLED === "false"
-  private nextRequestId = 1
-  private readonly pending = new Map<number, PendingRequest>()
   private warned = false
 
-  async start(): Promise<boolean> {
-    if (this.unavailable) return false
-    if (this.process) return true
-    if (this.starting) return this.starting
-
-    this.starting = new Promise<boolean>((resolve) => {
-      const python =
-        process.env.PADDLEOCR_PYTHON ??
-        (existsSync(virtualenvPython) ? virtualenvPython : "python3")
-      const child = spawn(
-        python,
-        [process.env.PADDLEOCR_WORKER ?? workerPath],
-        {
-          env: {
-            ...process.env,
-            PADDLE_PDX_MODEL_SOURCE:
-              process.env.PADDLE_PDX_MODEL_SOURCE ?? "BOS",
-          },
-          stdio: ["pipe", "pipe", "pipe"],
-        }
-      )
-      this.process = child
-      this.lines = createInterface({ input: child.stdout })
-
-      let settled = false
-      const finish = (ready: boolean): void => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        if (!ready) this.markUnavailable()
-        resolve(ready)
-      }
-      const timer = setTimeout(
-        () => finish(false),
-        timeoutValue("PADDLEOCR_STARTUP_TIMEOUT_MS", 120_000)
-      )
-
-      this.lines.on("line", (line) => {
-        try {
-          this.handle(JSON.parse(line) as WorkerResponse, finish)
-        } catch {
-          // Paddle logs are redirected to stderr; malformed stdout is ignored.
-        }
-      })
-      child.stderr.on("data", (chunk: Buffer) => {
-        if (process.env.PADDLEOCR_DEBUG === "true") process.stderr.write(chunk)
-      })
-      child.once("error", () => finish(false))
-      child.once("close", () => {
-        if (!settled) finish(false)
-        this.rejectPending(new Error("The PaddleOCR worker stopped."))
-        this.process = undefined
-        this.lines = undefined
-      })
-    }).finally(() => {
-      this.starting = undefined
-    })
-    return this.starting
-  }
-
-  async warm(): Promise<void> {
-    await this.start()
-  }
-
-  private handle(
-    response: WorkerResponse,
-    finish: (ready: boolean) => void
-  ): void {
-    if ("ready" in response) {
-      finish(true)
-      return
-    }
-    const request = this.pending.get(response.id)
-    if (!request) return
-    this.pending.delete(response.id)
-    if ("error" in response) {
-      request.reject(new Error(response.error))
-      return
-    }
-    if (response.results.length !== request.paths.length) {
-      request.reject(new Error("PaddleOCR returned an invalid result count."))
-      return
-    }
-    request.resolve(
-      response.results.map((result) => ({
-        angle: validAngle(result.angle),
-        confidence: result.confidence,
-        source: "paddleocr",
-      }))
+  private warn(error: unknown): void {
+    if (this.warned) return
+    this.warned = true
+    console.warn(
+      `Dedoc orientation service is unavailable; using original image orientation: ${error instanceof Error ? error.message : String(error)}`
     )
-  }
-
-  private markUnavailable(): void {
-    this.unavailable = true
-    this.process?.kill()
-    this.process = undefined
-    this.lines?.close()
-    this.lines = undefined
-    if (!this.warned) {
-      this.warned = true
-      console.warn(
-        "PaddleOCR orientation worker is unavailable; using original image orientation."
-      )
-    }
-  }
-
-  private rejectPending(error: Error): void {
-    for (const request of this.pending.values()) request.reject(error)
-    this.pending.clear()
   }
 
   async classify(paths: string[]): Promise<ImageOrientation[]> {
     if (paths.length === 0) return []
-    if (!(await this.start())) return fallback(paths)
-    const child = this.process
-    if (!child) return fallback(paths)
 
-    return new Promise<ImageOrientation[]>((resolve, reject) => {
-      const id = this.nextRequestId++
-      this.pending.set(id, { resolve, reject, paths })
-      const request: WorkerRequest = { id, paths }
-      child.stdin.write(`${JSON.stringify(request)}\n`, (error) => {
-        if (!error) return
-        this.pending.delete(id)
-        this.markUnavailable()
-        resolve(fallback(paths))
+    try {
+      const response = await fetch(classifyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paths }),
+        signal: AbortSignal.timeout(
+          timeoutValue("ORIENTATION_TIMEOUT_MS", 15_000)
+        ),
       })
-    }).catch((error: unknown) => {
-      this.markUnavailable()
-      console.warn(
-        `PaddleOCR orientation failed; using original orientation: ${error instanceof Error ? error.message : String(error)}`
-      )
-      return fallback(paths)
-    })
-  }
-
-  async close(): Promise<void> {
-    await this.starting?.catch(() => false)
-    this.rejectPending(new Error("The PaddleOCR worker was closed."))
-    this.lines?.close()
-    this.process?.kill()
-    this.lines = undefined
-    this.process = undefined
+      if (!response.ok) {
+        throw new Error(`Orientation service returned HTTP ${response.status}`)
+      }
+      const payload = responseSchema.parse(await response.json())
+      if (payload.results.length !== paths.length) {
+        throw new Error("Orientation service returned an invalid result count")
+      }
+      return payload.results
+    } catch (error) {
+      this.warn(error)
+      return paths.map(() => fallback())
+    }
   }
 }

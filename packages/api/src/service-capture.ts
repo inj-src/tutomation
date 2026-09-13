@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises"
-import { basename, dirname } from "node:path"
+import { basename, dirname, join } from "node:path"
+
+import sharp from "sharp"
 
 import type { EvaluationCapture, ScriptCandidate } from "./core/site.js"
 
@@ -36,6 +38,15 @@ function dataUrl(bytes: Buffer): string {
   return `data:image/png;base64,${bytes.toString("base64")}`
 }
 
+function normalizedScriptPath(
+  page: EvaluationCapture["pages"][number]
+): string {
+  return join(
+    dirname(page.studentScriptPath),
+    `student-script-normalized-${page.imageIndex + 1}.png`
+  )
+}
+
 export async function publicCapture(
   candidate: ScriptCandidate,
   capture: EvaluationCapture
@@ -46,13 +57,28 @@ export async function publicCapture(
   const [referenceImage, pages] = await Promise.all([
     readFile(capture.referencePath).then(dataUrl),
     Promise.all(
-      capture.pages.map(async (page) => ({
-        imageIndex: page.imageIndex,
-        imageOrder: page.imageOrder,
-        orientation: page.orientation,
-        canvas: page.canvas,
-        studentScriptImage: dataUrl(await readFile(page.studentScriptPath)),
-      }))
+      capture.pages.map(async (page) => {
+        const image = await readFile(normalizedScriptPath(page))
+        const metadata = await sharp(image).metadata()
+        if (!metadata.width || !metadata.height) {
+          throw new Error(
+            `Could not read normalized image dimensions for page ${page.imageIndex + 1}.`
+          )
+        }
+
+        return {
+          imageIndex: page.imageIndex,
+          imageOrder: page.imageOrder,
+          orientation: page.orientation,
+          canvas: {
+            cssWidth: metadata.width,
+            cssHeight: metadata.height,
+            pixelWidth: metadata.width,
+            pixelHeight: metadata.height,
+          },
+          studentScriptImage: dataUrl(image),
+        }
+      })
     ),
   ])
 

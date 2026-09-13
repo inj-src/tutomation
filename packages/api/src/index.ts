@@ -10,7 +10,6 @@ import { ApiError, TeacherBrowserService } from "./service.js"
 import { candidateId } from "./core/site.js"
 
 export { ApiError, TeacherBrowserService } from "./service.js"
-export { renderEvaluation } from "./core/renderer.js"
 export * from "./core/types.js"
 export * from "./core/site.js"
 export type { ImageOrientation, OrientationAngle } from "./core/orientation.js"

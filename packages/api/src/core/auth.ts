@@ -241,7 +241,7 @@ export async function ensureTeacherAuthenticated(
 
   if (!terminal) {
     throw new Error(
-      "Teacher authentication is required. Run `pnpm login` once to save credentials for the local server."
+      "Teacher authentication is required. Authenticate through POST /api/auth/login before using the local server."
     )
   }
 

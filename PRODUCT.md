@@ -24,12 +24,12 @@ The product combines live Playwright scraping with an editable, human-in-the-loo
 
 ## Operating Context
 
-The tool runs locally on a teacher workstation. The Hono server owns one headless persistent Playwright session and scrapes the source website on every request. The CLI calls the shared Hono app directly for login and agent-oriented workflows. The web app presents category selection, script entries, the student canvas, and question/sample-answer references.
+The tool runs locally on a teacher workstation. The Hono server owns one headless persistent Playwright session and scrapes the source website on every request. The web app presents category selection, script entries, the student canvas, and question/sample-answer references.
 
 ## Capabilities and Constraints
 
-- The repository is organized as `apps/server`, `apps/web`, `apps/cli`, and `packages/api`.
-- The server automatically restores saved Playwright authentication and can prompt through the CLI when credentials are needed.
+- The repository is organized as `apps/server`, `apps/web`, and `packages/api`.
+- The server automatically restores saved Playwright authentication; credentials can be supplied through the API login endpoint.
 - Category and entry data are live and may disappear or change between requests; errors must be visible and recoverable.
 - AI evaluation returns scores, annotations, comments, and Excalidraw-compatible visual data.
 - The teacher can edit AI output in the base Excalidraw editor with infinity-canvas mode disabled.
@@ -40,7 +40,7 @@ The tool runs locally on a teacher workstation. The Hono server owns one headles
 
 ## Evidence on Hand
 
-The existing local Playwright scraper, persisted authentication files, Luna evaluator, Excalidraw-style renderer, and captured run images in the repository are the implementation evidence. The attached UI sketch defines the intended two-page workflow. No production deployment, multi-user authentication, or live submission behavior is required for this build.
+The existing local Playwright scraper, persisted authentication files, Luna evaluator, and captured run images in the repository are the implementation evidence. The attached UI sketch defines the intended two-page workflow. No production deployment, multi-user authentication, or live submission behavior is required for this build.
 
 ## Product Principles
 
@@ -48,4 +48,4 @@ The existing local Playwright scraper, persisted authentication files, Luna eval
 - Treat the source website as live, fallible, and authoritative for current availability.
 - Make recovery from stale or disappearing scripts explicit.
 - Preserve original student evidence while improving working-scale perception and rendering.
-- Keep local setup and agent/CLI workflows direct and inspectable.
+- Keep local setup and browser workflows direct and inspectable.

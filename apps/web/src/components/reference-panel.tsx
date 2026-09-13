@@ -13,14 +13,14 @@ import {
 
 export function ReferencePanel({ capture }: { capture?: Capture }) {
   return (
-    <aside className="bg-card p-3 sm:p-5 min-w-0 h-full">
-      <ScrollArea className="h-full">
+    <aside className="bg-card min-w-0 h-full">
+      <ScrollArea className="px-4 pt-4 h-full">
         <div className="mb-4">
           <p className="font-semibold text-sm">Reference</p>
           <p className="mt-1 text-muted-foreground text-xs">Question and sample answer</p>
         </div>
         {capture?.status === "ready" && capture.referenceImage ? (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 pb-4">
             <Dialog>
               <DialogTrigger className="flex flex-col gap-3">
                 <img

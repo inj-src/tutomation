@@ -130,11 +130,10 @@ export class TeacherSite {
       this.opening = undefined
     })
     await this.opening
-    void this.orientation.start()
   }
 
   async start(): Promise<void> {
-    await this.orientation.warm()
+    await this.open()
   }
 
   private currentContext(): BrowserContext {
@@ -228,6 +227,5 @@ export class TeacherSite {
     this.context = this.browser = undefined
     await context?.close().catch(() => undefined)
     await browser?.close().catch(() => undefined)
-    await this.orientation.close()
   }
 }

@@ -9,5 +9,7 @@ test-results/
 coverage/
 __pycache__/
 .venv/
+.litert-lm/
+.dedoc-orientation/
 *.local
 *.tsbuildinfo

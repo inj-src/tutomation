@@ -1,7 +1,7 @@
-import { ScrollArea } from "@workspace/ui/components/scroll-area"
-import { Skeleton } from "@workspace/ui/components/skeleton"
+import { ScrollArea } from "@workspace/ui/components/scroll-area";
+import { Skeleton } from "@workspace/ui/components/skeleton";
 
-import type { Capture } from "../lib/api"
+import type { Capture } from "../lib/api";
 
 import {
   Dialog,
@@ -9,34 +9,32 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@workspace/ui/components/dialog"
+} from "@workspace/ui/components/dialog";
 
 export function ReferencePanel({ capture }: { capture?: Capture }) {
   return (
-    <aside className="h-full min-w-0 bg-card p-3 sm:p-5">
+    <aside className="bg-card p-3 sm:p-5 min-w-0 h-full">
       <ScrollArea className="h-full">
         <div className="mb-4">
-          <p className="text-sm font-semibold">Reference</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Question and sample answer
-          </p>
+          <p className="font-semibold text-sm">Reference</p>
+          <p className="mt-1 text-muted-foreground text-xs">Question and sample answer</p>
         </div>
         {capture?.status === "ready" && capture.referenceImage ? (
           <div className="flex flex-col gap-4">
             <Dialog>
               <DialogTrigger className="flex flex-col gap-3">
                 <img
-                  className="h-auto max-h-[70vh] w-full rounded border object-contain"
+                  className="border rounded w-full h-auto"
                   src={capture.referenceImage}
                   alt="Question and sample answer"
                 />
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] w-full max-w-5xl overflow-auto sm:max-w-5xl">
+              <DialogContent className="w-full max-w-5xl sm:max-w-5xl max-h-[90vh] overflow-auto">
                 <DialogHeader>
                   <DialogTitle>Question and sample answer</DialogTitle>
                 </DialogHeader>
                 <img
-                  className="h-auto max-h-[70vh] w-full rounded border object-contain"
+                  className="border rounded w-full h-auto"
                   src={capture.referenceImage}
                   alt="Question and sample answer"
                 />
@@ -44,9 +42,9 @@ export function ReferencePanel({ capture }: { capture?: Capture }) {
             </Dialog>
           </div>
         ) : (
-          <Skeleton className="h-48 w-full" />
+          <Skeleton className="w-full h-48" />
         )}
       </ScrollArea>
     </aside>
-  )
+  );
 }

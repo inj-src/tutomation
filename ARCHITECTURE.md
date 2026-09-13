@@ -29,8 +29,7 @@ Important boundaries:
 - `@repo/shared` contains helpers safe for Vite/browser use, such as
   `candidateEvaluationUrl` and `canonicalImageSize`.
 - `@workspace/ui` contains the installed shadcn components.
-- The web app calls Hono through `hc<AppType>` and `parseResponse`; it does
-  not maintain a generic untyped fetch wrapper.
+- The web app calls Hono through `hc<AppType>` and `parseResponse`; it does not maintain a generic untyped fetch wrapper.
 - The CLI uses the same Hono app and typed RPC client with a local fetch
   adapter. It does not make network HTTP calls.
 
@@ -71,9 +70,8 @@ intentional server memory is the AI evaluator state:
 - the evaluator's previous AI response ID
 - prompt-cache metadata used by the AI provider
 
-The server logs request IDs, HTTP failures, and AI started/completed/failed
-events. Unhandled promise rejections are logged without taking down the local
-server.
+The server logs request IDs, failures, and AI lifecycle events, and contains
+unhandled promise rejections without taking down the local server.
 
 ## Request flow
 
@@ -110,10 +108,12 @@ A capture:
 5. Verifies the hidden evaluation fields so a sticky redirect is detected.
 6. Reads every ordered script-image URL from the portal carousel metadata.
 7. Downloads all script images concurrently through Playwright's authenticated
-   request context, without clicking through the carousel.
-8. Captures the question and sample answer together from the question
-   `<thead>`.
-9. Saves the run metadata and returns ordered page data URLs to the web app.
+   request context, without clicking through the carousel, and saves raw bytes.
+8. Post-capture normalizes EXIF, classifies orientation with warm PaddleOCR, and
+   writes corrected PNGs with Sharp.
+9. Captures the question and sample answer together from the question `<thead>`.
+10. Saves metadata, logs `image.orientation.completed`, and returns ordered page data URLs plus a persisted `captureId`.
+11. Evaluation reuses that handle from disk; an expired handle returns `CAPTURE_EXPIRED` without recapturing the portal.
 
 If the student script disappears between listing and navigation, capture retries
 the same stable entry once. A fresh scrape can then provide its next pending
@@ -130,9 +130,11 @@ and paths:
 - `ums-public-online-written.s3-ap-southeast-1.amazonaws.com/StudentOnlineWrittenExamImage/`
 
 Every `questionImage_N[data-url]` slide is sorted by the portal's `ImageOrder`.
-Those exact allowlisted URLs are downloaded concurrently and normalized with
-Sharp. The server never guesses from arbitrary page images, and it does not
-click next/previous to discover later pages.
+Those exact URLs are downloaded concurrently. EXIF orientation is normalized
+with Sharp; a warm local PaddleOCR worker classifies all pages and Sharp applies
+90/180/270 degree corrections before AI, canvas, and submission. The server
+never guesses from arbitrary page images or clicks next/previous to discover
+later pages.
 
 ### Question and sample answer
 
@@ -277,6 +279,7 @@ for a handwritten appearance.
 | Every entry shows the same script | Account-level running evaluation/sticky page | Check running DTO; conflict or explicit Exit |
 | Dialog never appears | Portal's client dialog is unreliable | Use the observed running POST and explicit form Exit |
 | Wrong image sent to AI | Captured an arbitrary page image | Allowlist the exact S3 host/path |
+| Rotated page or annotations | Display used metadata/original pixels | Normalize EXIF, classify orientation, then use corrected pixels everywhere |
 | Blank question or clipped answer | Separate/unstable DOM crops | Click `#SampleAns`; screenshot its `<thead>` |
 | AI marks are huge on tiny scripts | Coordinates stayed in 800px space | Restore coordinates to original dimensions |
 | Marks drift outside image | Canvas and image had different geometry/padding | Use one exact image-sized coordinate surface |
@@ -294,6 +297,4 @@ for a handwritten appearance.
 - Keep credentials, storage state, and captured private data out of commits.
 - Preserve the evidence files when investigating portal behavior.
 - Validate with `pnpm typecheck`, `pnpm lint`, `pnpm build`, and focused tests.
-- Static checks do not prove a live Udvash transition, account lock, login,
-  submission, or browser rendering path. Exercise those manually only when
-  releasing or intentionally testing the portal integration.
+- Static checks do not prove a live Udvash transition, account lock, login, submission, or browser rendering path. Exercise those manually only when releasing or intentionally testing the portal integration.

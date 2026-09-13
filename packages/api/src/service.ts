@@ -1,8 +1,11 @@
-import { join } from "node:path"
+import { basename, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type { TeacherCredentials } from "./core/auth.js"
+import { loadSavedCapture } from "./core/capture-store.js"
 import { CategoryEvaluator } from "./core/evaluator.js"
+import { correctionRotation } from "./core/orientation.js"
+import { logEvent } from "./core/event-log.js"
 import {
   RunningEvaluationConflict,
   ScriptUnavailableError,
@@ -51,6 +54,14 @@ type CaptureRun = {
   publicCapture: PublicCapture
 }
 
+function captureExpired(): ApiError {
+  return new ApiError(
+    "This capture is no longer available. Reload the entry to capture it again.",
+    409,
+    "CAPTURE_EXPIRED"
+  )
+}
+
 export class TeacherBrowserService {
   private readonly site = new TeacherSite()
   private readonly evaluators = new Map<string, CategoryEvaluator>()
@@ -58,6 +69,10 @@ export class TeacherBrowserService {
 
   async login(credentials: TeacherCredentials): Promise<void> {
     await this.site.login(credentials)
+  }
+
+  async start(): Promise<void> {
+    await this.site.start()
   }
 
   async listCategories(): Promise<ScriptCategory[]> {
@@ -126,6 +141,18 @@ export class TeacherBrowserService {
       `${timestamp()}-exam-${candidate.examId}-script-${candidate.pendingQuestion}`
     )
     const capture = await this.site.capture(candidate, outputDirectory)
+    logEvent("image.orientation.completed", {
+      candidateId: id,
+      captureId: basename(outputDirectory),
+      pages: capture.pages.map((page) => ({
+        imageIndex: page.imageIndex,
+        imageOrder: page.imageOrder,
+        detectedAngle: page.orientation.angle,
+        appliedRotation: correctionRotation(page.orientation.angle),
+        confidence: page.orientation.confidence,
+        source: page.orientation.source,
+      })),
+    })
     return {
       candidate,
       capture,
@@ -157,15 +184,31 @@ export class TeacherBrowserService {
     return (await this.captureOnSite(id)).publicCapture
   }
 
+  private async savedCaptureRun(
+    id: string,
+    captureId: string
+  ): Promise<CaptureRun> {
+    const saved = await loadSavedCapture(runsDirectory, id, captureId)
+    if (!saved) throw captureExpired()
+    return {
+      candidate: saved.candidate,
+      capture: saved.capture,
+      publicCapture: await publicCapture(saved.candidate, saved.capture),
+    }
+  }
+
   async evaluate(
     id: string,
-    retryNote?: string
+    retryNote?: string,
+    captureId?: string
   ): Promise<{
     candidate: ScriptCandidate
     capture: PublicCapture
     evaluation: GeneratedEvaluation
   }> {
-    const run = await this.captureOnSite(id)
+    const run = captureId
+      ? await this.savedCaptureRun(id, captureId)
+      : await this.captureOnSite(id)
     const key = categoryKey(run.candidate)
     const evaluator = this.evaluators.get(key) ?? new CategoryEvaluator(key)
     this.evaluators.set(key, evaluator)

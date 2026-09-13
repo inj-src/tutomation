@@ -16,6 +16,7 @@ export type Capture = {
   candidate: ScriptCandidate
   evaluationUrl: string
   maxScore: number
+  captureId: string
   runDirectory: string
   referenceImage?: string
   pages: Array<{
@@ -88,12 +89,14 @@ export async function getCapture(candidateId: string): Promise<Capture> {
 }
 
 export async function evaluateCandidate(
-  candidateId: string
+  candidateId: string,
+  captureId?: string
 ): Promise<EvaluationResult> {
+  const json = captureId ? { captureId } : {}
   return parseResponse(
     client.api.entries[":candidateId"].evaluate.$post({
       param: { candidateId },
-      json: {},
+      json,
     })
   )
 }

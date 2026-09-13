@@ -154,7 +154,7 @@ async function evaluate(
   const result = await parseResponse(
     client.api.entries[":candidateId"].evaluate.$post({
       param: { candidateId: id },
-      json: {},
+      json: { captureId: capture.captureId },
     })
   )
   const runDirectory = result.capture.runDirectory || capture.runDirectory

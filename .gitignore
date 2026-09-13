@@ -7,5 +7,7 @@ dist/
 playwright-report/
 test-results/
 coverage/
+__pycache__/
+.venv/
 *.local
 *.tsbuildinfo

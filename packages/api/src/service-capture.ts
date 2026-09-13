@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises"
-import { dirname } from "node:path"
+import { basename, dirname } from "node:path"
 
 import type { EvaluationCapture, ScriptCandidate } from "./core/site.js"
 
@@ -9,6 +9,7 @@ export type PublicCapture = {
   candidate: ScriptCandidate
   evaluationUrl: string
   maxScore: number
+  captureId: string
   runDirectory: string
   referenceImage?: string
   pages: PublicScriptPage[]
@@ -17,6 +18,7 @@ export type PublicCapture = {
 export type PublicScriptPage = {
   imageIndex: number
   imageOrder: number
+  orientation: EvaluationCapture["pages"][number]["orientation"]
   canvas: EvaluationCapture["pages"][number]["canvas"]
   studentScriptImage: string
 }
@@ -38,12 +40,16 @@ export async function publicCapture(
   candidate: ScriptCandidate,
   capture: EvaluationCapture
 ): Promise<PublicCapture> {
+  const runDirectory = dirname(
+    capture.pages[0]?.studentScriptPath ?? capture.metadataPath
+  )
   const [referenceImage, pages] = await Promise.all([
     readFile(capture.referencePath).then(dataUrl),
     Promise.all(
       capture.pages.map(async (page) => ({
         imageIndex: page.imageIndex,
         imageOrder: page.imageOrder,
+        orientation: page.orientation,
         canvas: page.canvas,
         studentScriptImage: dataUrl(await readFile(page.studentScriptPath)),
       }))
@@ -55,9 +61,8 @@ export async function publicCapture(
     candidate,
     evaluationUrl: capture.evaluationUrl,
     maxScore: capture.maxScore,
-    runDirectory: dirname(
-      capture.pages[0]?.studentScriptPath ?? capture.metadataPath
-    ),
+    captureId: basename(runDirectory),
+    runDirectory,
     referenceImage,
     pages,
   }

@@ -13,6 +13,7 @@ export { ApiError, TeacherBrowserService } from "./service.js"
 export { renderEvaluation } from "./core/renderer.js"
 export * from "./core/types.js"
 export * from "./core/site.js"
+export type { ImageOrientation, OrientationAngle } from "./core/orientation.js"
 export { candidateEvaluationUrl } from "./core/site-url.js"
 export type { RunningEvaluation } from "./core/site-navigation.js"
 export type { TeacherCredentials } from "./core/auth.js"
@@ -23,6 +24,7 @@ const loginSchema = z.object({
 })
 
 const evaluateSchema = z.object({
+  captureId: z.string().min(1).optional(),
   retryNote: z.string().optional(),
 })
 
@@ -89,7 +91,7 @@ export function createApi(service: TeacherBrowserService) {
       "/api/entries/:candidateId/evaluate",
       zValidator("json", evaluateSchema),
       async (c) => {
-        const { retryNote } = c.req.valid("json")
+        const { captureId, retryNote } = c.req.valid("json")
         const candidateIdValue = c.req.param("candidateId")
         const startedAt = Date.now()
         logEvent("ai.evaluation.started", {
@@ -99,7 +101,11 @@ export function createApi(service: TeacherBrowserService) {
         })
 
         try {
-          const result = await service.evaluate(candidateIdValue, retryNote)
+          const result = await service.evaluate(
+            candidateIdValue,
+            retryNote,
+            captureId
+          )
           logEvent("ai.evaluation.completed", {
             requestId: c.var.requestId,
             candidateId: candidateIdValue,

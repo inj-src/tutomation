@@ -18,7 +18,9 @@ import {
 import {
   captureScript as captureScriptOnPage,
   finalizeCapture,
+  transformCapturedScript,
 } from "./site-capture.js"
+import { OrientationClassifier, type ImageOrientation } from "./orientation.js"
 import { SiteListing } from "./site-listing.js"
 import { exitRunningEvaluation } from "./site-navigation.js"
 import { captureReferences as captureReferencesOnPage } from "./site-references.js"
@@ -70,7 +72,9 @@ export type CanvasSize = {
 export type ScriptPageCapture = {
   imageIndex: number
   imageOrder: number
+  capturedScriptPath: string
   studentScriptPath: string
+  orientation: ImageOrientation
   canvas: CanvasSize
 }
 
@@ -94,6 +98,7 @@ export class TeacherSite {
   private opening: Promise<void> | undefined
   private authenticating: Promise<void> | undefined
   private readonly listing = new SiteListing()
+  private readonly orientation = new OrientationClassifier()
 
   constructor(private readonly terminal?: ReadlineInterface) {}
 
@@ -125,6 +130,11 @@ export class TeacherSite {
       this.opening = undefined
     })
     await this.opening
+    void this.orientation.start()
+  }
+
+  async start(): Promise<void> {
+    await this.orientation.warm()
   }
 
   private currentContext(): BrowserContext {
@@ -195,8 +205,12 @@ export class TeacherSite {
     return this.withPage(async (page) => {
       await this.navigate(page, candidate.detailsUrl)
       const script = await captureScriptOnPage(page, candidate, outputDirectory)
+      const transformed = await transformCapturedScript(
+        script,
+        this.orientation
+      )
       const references = await captureReferencesOnPage(page, outputDirectory)
-      return finalizeCapture(page, candidate, script, references)
+      return finalizeCapture(page, candidate, transformed, references)
     })
   }
 
@@ -214,5 +228,6 @@ export class TeacherSite {
     this.context = this.browser = undefined
     await context?.close().catch(() => undefined)
     await browser?.close().catch(() => undefined)
+    await this.orientation.close()
   }
 }

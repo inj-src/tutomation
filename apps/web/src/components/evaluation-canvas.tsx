@@ -1,52 +1,50 @@
 import { Excalidraw } from "@excalidraw/excalidraw"
+import type { NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import type { KeyboardEvent, PointerEvent, WheelEvent } from "react"
 
 import { useContainedCanvasSize } from "../hooks/use-contained-canvas-size"
 import { useFitExcalidrawImage } from "../hooks/use-fit-excalidraw-image"
-import { sceneFor } from "./evaluation-scene"
 import type { Capture, EvaluationResult } from "../lib/api"
+import { sceneFor } from "./evaluation-scene"
 import "./evaluation-canvas.css"
 
+type ScriptPage = Capture["pages"][number]
+type PageEvaluation = EvaluationResult["evaluation"]["pages"][number]
+
 export function EvaluationCanvas({
-  capture,
+  page,
   evaluation,
   extraBottomSpace,
-  revision,
+  initialElements,
   onApi,
+  onElementsChange,
 }: {
-  capture: Capture
-  evaluation?: EvaluationResult["evaluation"]
+  page: ScriptPage
+  evaluation?: PageEvaluation
   extraBottomSpace: number
-  revision: number
+  initialElements?: readonly NonDeletedExcalidrawElement[]
   onApi?: (api: ExcalidrawImperativeAPI) => void
+  onElementsChange?: (elements: readonly NonDeletedExcalidrawElement[]) => void
 }) {
-  const scene = useMemo(
-    () =>
-      sceneFor(
-        evaluation,
-        capture.canvas.pixelWidth,
-        capture.canvas.pixelHeight
-      ),
-    [capture.canvas.pixelHeight, capture.canvas.pixelWidth, evaluation]
+  const generated = useMemo(
+    () => sceneFor(evaluation, page.canvas.pixelWidth, page.canvas.pixelHeight),
+    [evaluation, page.canvas.pixelHeight, page.canvas.pixelWidth]
   )
-  const canvasHeight = capture.canvas.pixelHeight + extraBottomSpace
-  const ratio = capture.canvas.pixelWidth / canvasHeight
+  const elements = initialElements ?? generated.elements
+  const canvasHeight = page.canvas.pixelHeight + extraBottomSpace
+  const ratio = page.canvas.pixelWidth / canvasHeight
   const { ref, style } = useContainedCanvasSize(ratio)
   const [api, setApi] = useState<ExcalidrawImperativeAPI>()
 
   useFitExcalidrawImage(
     api,
-    capture.canvas.pixelWidth,
+    page.canvas.pixelWidth,
     canvasHeight,
     style.width,
     style.height
   )
-  useEffect(() => {
-    if (!api || !evaluation) return
-    api.updateScene({ elements: scene.elements })
-  }, [api, evaluation, scene.elements])
   const blockNavigation = (event: PointerEvent | KeyboardEvent) => {
     event.preventDefault()
     event.stopPropagation()
@@ -81,24 +79,24 @@ export function EvaluationCanvas({
       }
     >
       <img
-        src={capture.studentScriptImage}
+        src={page.studentScriptImage}
         alt=""
         aria-hidden="true"
         draggable={false}
         style={{
-          height: `${(capture.canvas.pixelHeight / canvasHeight) * 100}%`,
+          height: `${(page.canvas.pixelHeight / canvasHeight) * 100}%`,
         }}
       />
       <Excalidraw
-        key={`${capture.candidate.pendingQuestion}-${revision}`}
         initialData={{
-          elements: scene.elements,
+          elements,
           scrollToContent: false,
           appState: {
             currentItemStrokeColor: "#d62f2f",
             viewBackgroundColor: "transparent",
           },
         }}
+        onChange={(nextElements) => onElementsChange?.(nextElements)}
         viewModeEnabled={false}
         zenModeEnabled={false}
         gridModeEnabled={false}
@@ -113,9 +111,7 @@ export function EvaluationCanvas({
             saveToActiveFile: false,
             toggleTheme: false,
           },
-          tools: {
-            image: false,
-          },
+          tools: { image: false },
         }}
       />
     </div>

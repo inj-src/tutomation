@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react"
 
+const MAX_DISPLAY_WIDTH = 800
+
 export function useContainedCanvasSize(ratio: number) {
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<{ width: number; height: number }>()
@@ -10,7 +12,7 @@ export function useContainedCanvasSize(ratio: number) {
 
     const update = () => {
       const { width, height } = parent.getBoundingClientRect()
-      const containedWidth = Math.min(width, height * ratio)
+      const containedWidth = Math.min(width, height * ratio, MAX_DISPLAY_WIDTH)
       setSize({ width: containedWidth, height: containedWidth / ratio })
     }
 

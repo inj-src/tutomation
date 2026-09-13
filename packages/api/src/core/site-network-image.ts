@@ -1,5 +1,5 @@
 import sharp from "sharp"
-import type { Response as PlaywrightResponse } from "playwright"
+import type { APIRequestContext } from "playwright"
 
 export type DownloadedImage = {
   bytes: Buffer
@@ -7,8 +7,8 @@ export type DownloadedImage = {
   height: number
 }
 
-export function isStudentScriptImage(response: PlaywrightResponse): boolean {
-  const url = new URL(response.url())
+export function isStudentScriptImageUrl(value: string): boolean {
+  const url = new URL(value)
   const isSaq =
     url.hostname === "ums-public-saq.s3-ap-southeast-1.amazonaws.com" &&
     url.pathname.startsWith("/StudentSaqExamImage/")
@@ -16,42 +16,38 @@ export function isStudentScriptImage(response: PlaywrightResponse): boolean {
     url.hostname ===
       "ums-public-online-written.s3-ap-southeast-1.amazonaws.com" &&
     url.pathname.startsWith("/StudentOnlineWrittenExamImage/")
-  return response.ok() && (isSaq || isOnlineWritten)
+  return isSaq || isOnlineWritten
 }
 
-export async function downloadedStudentImage(
-  responses: PlaywrightResponse[]
-): Promise<DownloadedImage> {
-  const unique = [
-    ...new Map(responses.map((value) => [value.url(), value])).values(),
-  ]
-  const images = (
-    await Promise.all(
-      unique.map(async (response) => {
-        try {
-          const bytes = await response.body()
-          const metadata = await sharp(bytes).metadata()
-          if (!metadata.width || !metadata.height) return undefined
-          return {
-            bytes,
-            width: metadata.width,
-            height: metadata.height,
-            url: response.url(),
-          }
-        } catch {
-          return undefined
-        }
-      })
-    )
-  ).filter((value) => value !== undefined)
-
-  const largest = images.sort(
-    (left, right) => right.width * right.height - left.width * left.height
-  )[0]
-  if (!largest) {
+export async function downloadStudentImages(
+  request: APIRequestContext,
+  orderedUrls: string[]
+): Promise<DownloadedImage[]> {
+  if (orderedUrls.length === 0) {
     throw new Error(
-      "No supported student-script image response was captured from the evaluation page."
+      "No student-script image URLs were found on the evaluation page."
     )
   }
-  return largest
+  if (orderedUrls.some((url) => !isStudentScriptImageUrl(url))) {
+    throw new Error(
+      "The evaluation page contained an unsupported script image URL."
+    )
+  }
+
+  return Promise.all(
+    orderedUrls.map(async (url) => {
+      const response = await request.get(url, { timeout: 30_000 })
+      if (!response.ok()) {
+        throw new Error(
+          `Student-script image request failed with status ${response.status()}.`
+        )
+      }
+      const bytes = await response.body()
+      const metadata = await sharp(bytes).metadata()
+      if (!metadata.width || !metadata.height) {
+        throw new Error("Could not read a student-script image's dimensions.")
+      }
+      return { bytes, width: metadata.width, height: metadata.height }
+    })
+  )
 }

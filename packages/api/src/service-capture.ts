@@ -9,9 +9,15 @@ export type PublicCapture = {
   candidate: ScriptCandidate
   evaluationUrl: string
   maxScore: number
-  canvas: EvaluationCapture["canvas"]
   runDirectory: string
   referenceImage?: string
+  pages: PublicScriptPage[]
+}
+
+export type PublicScriptPage = {
+  imageIndex: number
+  imageOrder: number
+  canvas: EvaluationCapture["pages"][number]["canvas"]
   studentScriptImage: string
 }
 
@@ -32,9 +38,16 @@ export async function publicCapture(
   candidate: ScriptCandidate,
   capture: EvaluationCapture
 ): Promise<PublicCapture> {
-  const [referenceImage, studentScriptImage] = await Promise.all([
+  const [referenceImage, pages] = await Promise.all([
     readFile(capture.referencePath).then(dataUrl),
-    readFile(capture.studentScriptPath).then(dataUrl),
+    Promise.all(
+      capture.pages.map(async (page) => ({
+        imageIndex: page.imageIndex,
+        imageOrder: page.imageOrder,
+        canvas: page.canvas,
+        studentScriptImage: dataUrl(await readFile(page.studentScriptPath)),
+      }))
+    ),
   ])
 
   return {
@@ -42,9 +55,10 @@ export async function publicCapture(
     candidate,
     evaluationUrl: capture.evaluationUrl,
     maxScore: capture.maxScore,
-    canvas: capture.canvas,
-    runDirectory: dirname(capture.studentScriptPath),
+    runDirectory: dirname(
+      capture.pages[0]?.studentScriptPath ?? capture.metadataPath
+    ),
     referenceImage,
-    studentScriptImage,
+    pages,
   }
 }

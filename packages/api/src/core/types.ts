@@ -44,11 +44,16 @@ export type TokenUsage = {
   totalTokens: number
 }
 
+export type PageEvaluation = {
+  imageIndex: number
+  annotations: Annotation[]
+  questionScores: QuestionScore[]
+}
+
 export type GeneratedEvaluation = {
   score: number
   summary: string
-  annotations: Annotation[]
-  questionScores: QuestionScore[]
+  pages: PageEvaluation[]
   usage: TokenUsage
   responseId: string | null
 }

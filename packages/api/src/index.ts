@@ -105,8 +105,15 @@ export function createApi(service: TeacherBrowserService) {
             candidateId: candidateIdValue,
             durationMs: Date.now() - startedAt,
             score: result.evaluation.score,
-            questionScoreCount: result.evaluation.questionScores.length,
-            annotationCount: result.evaluation.annotations.length,
+            pageCount: result.evaluation.pages.length,
+            questionScoreCount: result.evaluation.pages.reduce(
+              (total, page) => total + page.questionScores.length,
+              0
+            ),
+            annotationCount: result.evaluation.pages.reduce(
+              (total, page) => total + page.annotations.length,
+              0
+            ),
             usage: result.evaluation.usage,
             responseId: result.evaluation.responseId,
           })

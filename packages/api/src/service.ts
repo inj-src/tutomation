@@ -172,14 +172,14 @@ export class TeacherBrowserService {
 
     const evaluation = this.sessionsStarted.has(key)
       ? await evaluator.evaluateNext({
-          studentScriptPath: run.capture.studentScriptPath,
+          pages: run.capture.pages,
           maxScore: run.capture.maxScore,
           scriptId: id,
           retryNote,
         })
       : await evaluator.evaluateFirst({
           referencePath: run.capture.referencePath,
-          studentScriptPath: run.capture.studentScriptPath,
+          pages: run.capture.pages,
           maxScore: run.capture.maxScore,
         })
     this.sessionsStarted.add(key)

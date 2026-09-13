@@ -6,7 +6,7 @@ import { chromium } from "playwright"
 import sharp from "sharp"
 
 import { canonicalImageSize } from "./image-scale.js"
-import type { Annotation, GeneratedEvaluation, PixelPoint } from "./types.js"
+import type { Annotation, PageEvaluation, PixelPoint } from "./types.js"
 
 const SCORE_FONT_SIZE = 30
 const COMMENT_FONT_SIZE = 28
@@ -428,7 +428,7 @@ function annotationComment(
 function buildElements(
   width: number,
   height: number,
-  evaluation: GeneratedEvaluation,
+  evaluation: PageEvaluation,
   scale: number
 ): RenderElement[] {
   const scores: RenderElement[] = evaluation.questionScores.flatMap(
@@ -498,9 +498,9 @@ function scalePoint(
 }
 
 function scaleEvaluation(
-  evaluation: GeneratedEvaluation,
+  evaluation: PageEvaluation,
   scale: number
-): GeneratedEvaluation {
+): PageEvaluation {
   if (scale === 1) {
     return evaluation
   }
@@ -575,7 +575,7 @@ async function renderExcalidrawSvg(
 export async function renderEvaluation(input: {
   sourcePath: string
   outputPath: string
-  evaluation: GeneratedEvaluation
+  evaluation: PageEvaluation
 }): Promise<void> {
   const source = sharp(input.sourcePath)
   const metadata = await source.metadata()

@@ -4,7 +4,7 @@ import {
 } from "@excalidraw/excalidraw"
 import { canonicalImageSize } from "@repo/shared/image-scale"
 
-import type { EvaluationResult } from "../lib/api"
+import type { PageEvaluation } from "@repo/api"
 
 type ElementSkeleton = NonNullable<
   Parameters<typeof convertToExcalidrawElements>[0]
@@ -26,7 +26,7 @@ function boundedRadius(value: number, width: number, height: number): number {
 }
 
 export function sceneFor(
-  evaluation: EvaluationResult["evaluation"] | undefined,
+  evaluation: PageEvaluation | undefined,
   width: number,
   height: number
 ): {

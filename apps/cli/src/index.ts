@@ -163,17 +163,34 @@ async function evaluate(
     join(runDirectory, "evaluation.json"),
     JSON.stringify(result, null, 2)
   )
-  await renderEvaluation({
-    sourcePath: join(runDirectory, "student-script.png"),
-    outputPath: join(runDirectory, "evaluated.png"),
-    evaluation: result.evaluation,
-  })
+  await Promise.all(
+    result.capture.pages.map((page) => {
+      const pageEvaluation = result.evaluation.pages.find(
+        (evaluationPage) => evaluationPage.imageIndex === page.imageIndex
+      )
+      if (!pageEvaluation) {
+        throw new Error(`AI evaluation omitted image ${page.imageIndex + 1}.`)
+      }
+      return renderEvaluation({
+        sourcePath: join(
+          runDirectory,
+          `student-script-${page.imageIndex + 1}.png`
+        ),
+        outputPath: join(runDirectory, `evaluated-${page.imageIndex + 1}.png`),
+        evaluation: pageEvaluation,
+      })
+    })
+  )
 
   const usage = result.evaluation.usage
   console.log(
     `\nEvaluation complete: ${result.evaluation.score}/${capture.maxScore}`
   )
-  console.log(`Annotated image: ${join(runDirectory, "evaluated.png")}`)
+  console.log(
+    `Annotated images: ${result.capture.pages
+      .map((page) => join(runDirectory, `evaluated-${page.imageIndex + 1}.png`))
+      .join(", ")}`
+  )
   console.log(`Input tokens: ${usage.inputTokens}`)
   console.log(`Cached input tokens: ${usage.cachedInputTokens}`)
   console.log(`Output tokens: ${usage.outputTokens}`)

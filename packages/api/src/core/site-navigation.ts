@@ -234,8 +234,8 @@ export async function startCandidate(
     throw new ScriptUnavailableError()
   }
 
-  await page.locator("canvas:visible").first().waitFor({
-    state: "visible",
+  await page.locator("[id^='questionImage_'][data-url]").first().waitFor({
+    state: "attached",
     timeout: 30_000,
   })
 }

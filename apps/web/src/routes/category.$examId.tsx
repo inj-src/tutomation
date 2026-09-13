@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { candidateEvaluationUrl } from "@repo/shared/site-url"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -12,9 +11,8 @@ import {
 } from "@workspace/ui/components/resizable"
 import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
 
-import { EvaluationCanvas } from "../components/evaluation-canvas"
-import { EvaluationControls } from "../components/evaluation-controls"
 import { EvaluationHeader } from "../components/evaluation-header"
+import { EvaluationWorkspace } from "../components/evaluation-workspace"
 import { ReferencePanel } from "../components/reference-panel"
 import { RunningEvaluationCard } from "../components/running-evaluation-card"
 import { ScriptList } from "../components/script-list"
@@ -36,6 +34,10 @@ export const Route = createFileRoute("/category/$examId")({
   component: CategoryWorkspace,
 })
 
+function scriptKey(candidateId: string, pendingQuestion: string): string {
+  return `${candidateId}~${pendingQuestion}`
+}
+
 function CategoryWorkspace() {
   const { examId } = Route.useParams()
   const { entry: entryParam } = Route.useSearch()
@@ -49,11 +51,7 @@ function CategoryWorkspace() {
     Record<string, EvaluationResult["evaluation"]>
   >({})
   const [revision, setRevision] = useState(0)
-  const [extraBottomSpace, setExtraBottomSpace] = useState(0)
   const [scriptListOpen, setScriptListOpen] = useState(true)
-  const [editorApi, setEditorApi] = useState<ExcalidrawImperativeAPI>()
-
-  useEffect(() => setExtraBottomSpace(0), [selectedId])
 
   const capture = useQuery({
     queryKey: ["capture", examId, selectedId],
@@ -71,13 +69,19 @@ function CategoryWorkspace() {
   const questionUrl =
     capture.data?.evaluationUrl ??
     (selected ? candidateEvaluationUrl(selected) : undefined)
-  const evaluation = selectedId ? evaluations[selectedId] : undefined
+  const activeScriptKey =
+    selectedId && capture.data
+      ? scriptKey(selectedId, capture.data.candidate.pendingQuestion)
+      : undefined
+  const evaluation = activeScriptKey ? evaluations[activeScriptKey] : undefined
   const evaluate = useMutation({
     mutationFn: () => evaluateCandidate(selectedId!),
     onSuccess: (result) => {
+      const resultKey = scriptKey(selectedId!, result.candidate.pendingQuestion)
+      queryClient.setQueryData(["capture", examId, selectedId], result.capture)
       setEvaluations((current) => ({
         ...current,
-        [selectedId!]: result.evaluation,
+        [resultKey]: result.evaluation,
       }))
       setRevision((current) => current + 1)
       toast.success("AI review is ready", {
@@ -94,7 +98,7 @@ function CategoryWorkspace() {
       if (!result.submitted) return
       setEvaluations((current) => {
         const next = { ...current }
-        delete next[selectedId!]
+        if (activeScriptKey) delete next[activeScriptKey]
         return next
       })
       void entries.refetch()
@@ -223,23 +227,11 @@ function CategoryWorkspace() {
                         onRetry={() => void capture.refetch()}
                       />
                     ) : capture.data ? (
-                      <div className="flex flex-1 flex-col items-center gap-4">
-                        <EvaluationControls
-                          api={editorApi}
-                          hasExtraSpace={extraBottomSpace > 0}
-                          onAddSpace={() =>
-                            setExtraBottomSpace((space) => space + 100)
-                          }
-                          onClearSpace={() => setExtraBottomSpace(0)}
-                        />
-                        <EvaluationCanvas
-                          capture={capture.data}
-                          evaluation={evaluation}
-                          extraBottomSpace={extraBottomSpace}
-                          revision={revision}
-                          onApi={setEditorApi}
-                        />
-                      </div>
+                      <EvaluationWorkspace
+                        key={`${activeScriptKey}-${revision}`}
+                        capture={capture.data}
+                        evaluation={evaluation}
+                      />
                     ) : (
                       <div className="m-auto text-center text-sm text-muted-foreground">
                         Select a script to load its canvas.

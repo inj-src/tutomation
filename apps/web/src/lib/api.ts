@@ -16,15 +16,19 @@ export type Capture = {
   candidate: ScriptCandidate
   evaluationUrl: string
   maxScore: number
-  canvas: {
-    cssWidth: number
-    cssHeight: number
-    pixelWidth: number
-    pixelHeight: number
-  }
   runDirectory: string
   referenceImage?: string
-  studentScriptImage: string
+  pages: Array<{
+    imageIndex: number
+    imageOrder: number
+    canvas: {
+      cssWidth: number
+      cssHeight: number
+      pixelWidth: number
+      pixelHeight: number
+    }
+    studentScriptImage: string
+  }>
 }
 
 export type EvaluationResult = {

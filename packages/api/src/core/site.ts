@@ -54,16 +54,24 @@ export type ScriptCandidate = {
 
 export type EvaluationCapture = {
   referencePath: string
-  studentScriptPath: string
+  pages: ScriptPageCapture[]
   metadataPath: string
   evaluationUrl: string
   maxScore: number
-  canvas: {
-    cssWidth: number
-    cssHeight: number
-    pixelWidth: number
-    pixelHeight: number
-  }
+}
+
+export type CanvasSize = {
+  cssWidth: number
+  cssHeight: number
+  pixelWidth: number
+  pixelHeight: number
+}
+
+export type ScriptPageCapture = {
+  imageIndex: number
+  imageOrder: number
+  studentScriptPath: string
+  canvas: CanvasSize
 }
 
 const baseUrl = "https://teacher.udvash-unmesh.com"

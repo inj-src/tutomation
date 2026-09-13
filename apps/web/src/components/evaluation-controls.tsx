@@ -5,6 +5,8 @@ import type {
 import {
   ArrowRight,
   Circle,
+  ChevronLeft,
+  ChevronRight,
   Eraser,
   Minus,
   MousePointer2,
@@ -16,6 +18,7 @@ import {
 import { useEffect, useState } from "react"
 
 import { Button } from "@workspace/ui/components/button"
+import { Separator } from "@workspace/ui/components/separator"
 
 type ToolIcon = typeof MousePointer2
 const tools: { type: ToolType; label: string; icon: ToolIcon }[] = [
@@ -34,11 +37,19 @@ export function EvaluationControls({
   hasExtraSpace,
   onAddSpace,
   onClearSpace,
+  pageIndex,
+  pageCount,
+  onPreviousPage,
+  onNextPage,
 }: {
   api?: ExcalidrawImperativeAPI
   hasExtraSpace: boolean
   onAddSpace: () => void
   onClearSpace: () => void
+  pageIndex: number
+  pageCount: number
+  onPreviousPage: () => void
+  onNextPage: () => void
 }) {
   const [activeTool, setActiveTool] = useState<ToolType>("selection")
 
@@ -58,6 +69,18 @@ export function EvaluationControls({
       role="toolbar"
       aria-label="Drawing tools"
     >
+      <Button
+        variant="ghost"
+        size="icon"
+        type="button"
+        aria-label="Previous script image"
+        title="Previous script image"
+        disabled={pageIndex === 0}
+        onClick={onPreviousPage}
+      >
+        <ChevronLeft />
+      </Button>
+      <Separator orientation="vertical" className="mx-1 h-5 !self-center" />
       {tools.map(({ type, label, icon: Icon }) => (
         <Button
           key={type}
@@ -96,6 +119,18 @@ export function EvaluationControls({
         onClick={onClearSpace}
       >
         <Minus />
+      </Button>
+      <Separator orientation="vertical" className="mx-1 h-5 !self-center" />
+      <Button
+        variant="ghost"
+        size="icon"
+        type="button"
+        aria-label="Next script image"
+        title="Next script image"
+        disabled={pageIndex === pageCount - 1}
+        onClick={onNextPage}
+      >
+        <ChevronRight />
       </Button>
     </div>
   )
